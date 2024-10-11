@@ -1,0 +1,11 @@
+/dataset/*
+/autovc/*
+/demo/*
+/hifigan/*
+/results/*
+/Speech-Backbones/*
+/TTS/*
+/tts_hifigan/*
+/wandb/*
+nohup.out
+*.wav
