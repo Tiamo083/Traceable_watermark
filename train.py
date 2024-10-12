@@ -49,16 +49,16 @@ def DiffVC_model(source_path, target_path):
     mel_basis = librosa_mel_fn(sr = 22050, n_fft = 1024, n_mels = 80, fmin = 0, fmax = 8000)
 
     pdb.set_trace()
-    sys.path.append('/amax/home/Tiamo/Traceable_watermark/Speech-Backbones/DiffVC/')
+    sys.path.append('Speech-Backbones/DiffVC/')
     import params
     from VCmodel import DiffVC
 
     import sys
-    sys.path.append('/amax/home/Tiamo/Traceable_watermark/Speech-Backbones/DiffVC/hifi-gan/')
+    sys.path.append('Speech-Backbones/DiffVC/hifi-gan/')
     from env import AttrDict
     from models import Generator as HiFiGAN
 
-    sys.path.append('/amax/home/Tiamo/Traceable_watermark/Speech-Backbones/DiffVC/speaker_encoder/')
+    sys.path.append('Speech-Backbones/DiffVC/speaker_encoder/')
     from encoder import inference as spk_encoder
     from pathlib import Path
 
@@ -105,7 +105,7 @@ def DiffVC_model(source_path, target_path):
         return mel_denoised
 
     # loading voice conversion model
-    vc_path = '/amax/home/Tiamo/Traceable_watermark/Speech-Backbones/DiffVC/checkpts/vc/vc_vctk_wodyn.pt' # path to voice conversion model
+    vc_path = 'Speech-Backbones/DiffVC/checkpts/vc/vc_vctk_wodyn.pt' # path to voice conversion model
 
     generator = DiffVC(params.n_mels, params.channels, params.filters, params.heads, 
                     params.layers, params.kernel, params.dropout, params.window_size, 
@@ -121,7 +121,7 @@ def DiffVC_model(source_path, target_path):
     print(f'Number of parameters: {generator.nparams}')
 
     # loading HiFi-GAN vocoder
-    hfg_path = '/amax/home/Tiamo/Traceable_watermark/Speech-Backbones/DiffVC/checkpts/vocoder/' # HiFi-GAN path
+    hfg_path = 'Speech-Backbones/DiffVC/checkpts/vocoder/' # HiFi-GAN path
 
     with open(hfg_path + 'config.json') as f:
         h = AttrDict(json.load(f))
@@ -137,15 +137,15 @@ def DiffVC_model(source_path, target_path):
     hifigan_universal.remove_weight_norm()
 
     # loading speaker encoder
-    enc_model_fpath = Path('/amax/home/Tiamo/Traceable_watermark/Speech-Backbones/DiffVC/checkpts/spk_encoder/pretrained.pt') # speaker encoder path
+    enc_model_fpath = Path('Speech-Backbones/DiffVC/checkpts/spk_encoder/pretrained.pt') # speaker encoder path
     if use_gpu:
         spk_encoder.load_model(enc_model_fpath, device="cuda")
     else:
         spk_encoder.load_model(enc_model_fpath, device="cpu")
 
     # loading source and reference wavs, calculating mel-spectrograms and speaker embeddings
-    src_path = '/amax/home/Tiamo/Traceable_watermark/Speech-Backbones/DiffVC/example/6415_111615_000012_000005.wav' # path to source utterance
-    tgt_path = '/amax/home/Tiamo/Traceable_watermark/Speech-Backbones/DiffVC/example/8534_216567_000015_000010.wav' # path to reference utterance
+    src_path = 'Speech-Backbones/DiffVC/example/6415_111615_000012_000005.wav' # path to source utterance
+    tgt_path = 'Speech-Backbones/DiffVC/example/8534_216567_000015_000010.wav' # path to reference utterance
 
     mel_source = torch.from_numpy(get_mel(src_path)).float().unsqueeze(0)
     if use_gpu:
@@ -337,7 +337,7 @@ def main(args, configs):
                 my_step(d_op, lr_sched_d, global_step, train_len)
             
             if step % show_circle == 0:
-                save_audio_path = os.path.join("/amax/home/Tiamo/Traceable_watermark/results/wm_speech", "attack:{}_epoch:{}_step:{}.wav".format(train_config["attack_type"], ep, step))
+                save_audio_path = os.path.join("results/wm_speech", "attack:{}_epoch:{}_step:{}.wav".format(train_config["attack_type"], ep, step))
                 torchaudio.save(save_audio_path, src = encoded.detach().squeeze(1).to("cpu"), sample_rate = sample["sample_rate"])
 
                 # decoder_acc = (decoded[0] >= 0).eq(msg >= 0).sum().float() / msg.numel()

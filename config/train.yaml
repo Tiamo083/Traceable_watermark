@@ -8,7 +8,7 @@ adv: True
 
 
 path:
-  raw_path: "/amax/home/Tiamo/Traceable_watermark/dataset/LibriSpeech_wav"
+  raw_path: "./dataset/LibriSpeech_wav"
   raw_path_test: "./experiments/cloned_speechs"
   wm_speech: "./results/wm_speech"
   ckpt: "./results/ckpt/"

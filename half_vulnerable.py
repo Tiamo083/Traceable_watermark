@@ -214,7 +214,7 @@ def main(args, configs):
             
             if step % show_circle == 0:
                 # save generated audios
-                save_audio_path = os.path.join("/amax/home/Tiamo/Traceable_watermark/results/wm_speech", "attack:{}_epoch:{}.wav".format(train_config["attack_type"], ep))
+                save_audio_path = os.path.join("results/wm_speech", "attack:{}_epoch:{}.wav".format(train_config["attack_type"], ep))
                 torchaudio.save(save_audio_path, src = encoded.detach().squeeze(1).to("cpu"), sample_rate = sample["trans_sr"])
 
                 robust_msg, fragile_msg = torch.chunk(input = msg, chunks = 2, dim = 2)

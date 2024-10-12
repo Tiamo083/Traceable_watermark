@@ -93,7 +93,7 @@ def val(args, configs):
     val_log_path = os.path.join(train_config["path"]["log_path"], "val")
     os.makedirs(val_log_path, exist_ok=True)
 
-    op_path = "/amax/home/Tiamo/Traceable_watermark/results/ckpt/pth/none-conv227_ep_20_2024-02-21_06_01_35.pth"
+    op_path = "results/ckpt/pth/none-conv227_ep_20_2024-02-21_06_01_35.pth"
     checkpoint = torch.load(op_path)
     encoder.load_state_dict(checkpoint['encoder'])
     decoder.load_state_dict(checkpoint['decoder'])

@@ -10,6 +10,7 @@ import librosa
 
 import numpy as np
 import torch.nn as nn
+import torchaudio as ta
 import soundfile as sf
 import torch.nn.functional as F
 from collections import OrderedDict
@@ -33,11 +34,11 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 def make_metadata(mel):
     import sys
     from math import ceil
-    sys.path.append("/amax/home/Tiamo/Traceable_watermark/autovc")
+    sys.path.append("autovc")
     from model_bl import D_VECTOR
 
     C = D_VECTOR(dim_input=80, dim_cell=768, dim_emb=256).eval().cuda()
-    c_checkpoint = torch.load('/amax/home/Tiamo/Traceable_watermark/autovc/3000000-BL.ckpt')
+    c_checkpoint = torch.load('autovc/3000000-BL.ckpt')
     new_state_dict = OrderedDict()
     for key, val in c_checkpoint['model_b'].items():
         new_key = key[7:]
@@ -299,16 +300,16 @@ class distortion(nn.Module):
         use_gpu = torch.cuda.is_available()
         mel_basis = librosa_mel_fn(sr = 22050, n_fft = 1024, n_mels = 80, fmin = 0, fmax = 8000)
 
-        sys.path.append('/amax/home/Tiamo/Traceable_watermark/Speech-Backbones/DiffVC/')
+        sys.path.append('Speech-Backbones/DiffVC/')
         import params
         from VCmodel import DiffVC
 
         import sys
-        sys.path.append('/amax/home/Tiamo/Traceable_watermark/Speech-Backbones/DiffVC/hifi-gan/')
+        sys.path.append('DiffVC/hifi-gan/')
         from env import AttrDict
         from models import Generator as HiFiGAN
 
-        sys.path.append('/amax/home/Tiamo/Traceable_watermark/Speech-Backbones/DiffVC/speaker_encoder/')
+        sys.path.append('DiffVC/speaker_encoder/')
         from encoder import inference as spk_encoder
         from pathlib import Path
 
@@ -354,7 +355,7 @@ class distortion(nn.Module):
             return mel_denoised
 
         # loading voice conversion model
-        vc_path = '/amax/home/Tiamo/Traceable_watermark/Speech-Backbones/DiffVC/checkpts/vc/vc_vctk_wodyn.pt' # path to voice conversion model
+        vc_path = 'Speech-Backbones/DiffVC/checkpts/vc/vc_vctk_wodyn.pt' # path to voice conversion model
 
         generator = DiffVC(params.n_mels, params.channels, params.filters, params.heads, 
                         params.layers, params.kernel, params.dropout, params.window_size, 
@@ -368,7 +369,7 @@ class distortion(nn.Module):
         generator.eval()
 
         # loading HiFi-GAN vocoder
-        hfg_path = '/amax/home/Tiamo/Traceable_watermark/Speech-Backbones/DiffVC/checkpts/vocoder/' # HiFi-GAN path
+        hfg_path = 'Speech-Backbones/DiffVC/checkpts/vocoder/' # HiFi-GAN path
 
         with open(hfg_path + 'config.json') as f:
             h = AttrDict(json.load(f))
@@ -384,7 +385,7 @@ class distortion(nn.Module):
         hifigan_universal.remove_weight_norm()
 
         # loading speaker encoder
-        enc_model_fpath = Path('/amax/home/Tiamo/Traceable_watermark/Speech-Backbones/DiffVC/checkpts/spk_encoder/pretrained.pt') # speaker encoder path
+        enc_model_fpath = Path('Speech-Backbones/DiffVC/checkpts/spk_encoder/pretrained.pt') # speaker encoder path
         if use_gpu:
             spk_encoder.load_model(enc_model_fpath, device="cuda")
         else:
@@ -434,7 +435,7 @@ class distortion(nn.Module):
     def AutoVC(self, tgt_audio, src_path):
         import sys
         from math import ceil
-        sys.path.append("/amax/home/Tiamo/Traceable_watermark/autovc")
+        sys.path.append("autovc")
         from model_bl import D_VECTOR
         from model_vc import Generator
         from synthesis import build_model
@@ -450,7 +451,7 @@ class distortion(nn.Module):
         
         G = Generator(32, 256, 512, 32).eval().to(device)
         
-        g_checkpoint = torch.load("/amax/home/Tiamo/Traceable_watermark/autovc/autovc.ckpt",map_location='cuda:0')
+        g_checkpoint = torch.load("autovc/autovc.ckpt",map_location='cuda:0')
         G.load_state_dict(g_checkpoint['model'])
             
         def pad_seq(x, base = 32):
@@ -512,6 +513,221 @@ class distortion(nn.Module):
         with torch.no_grad():
             wav = tts.tts(text = "Hello world, my name is john, nice to meet you", speaker_wav = tgt_audio, language = "en").to(device)
         return wav.unsqueeze(0).unsqueeze(0)
+    
+    def DiffVC(self, tgt_audio, src_path):
+        mel_basis = librosa_mel_fn(sr = 22050, n_fft = 1024, n_mels = 80, fmin = 0, fmax = 8000)
+        import sys
+        sys.path.append('deepFake/DiffVC/speaker_encoder')
+        from encoder import inference as spk_encoder
+        import argparse
+        import IPython.display as ipd
+        from scipy.io.wavfile import write
+
+        sys.path.append('deepFake/DiffVC')
+        sys.path.append('deepFake/DiffVC/hifi-gan')
+
+        import params
+        from DiffVCmodel import DiffVC
+        from env import AttrDict
+        from models import Generator as HiFiGAN
+        from pathlib import Path
+
+        # loading voice conversion model
+        vc_path = 'deepFake/DiffVC/checkpts/vc/vc_libritts_wodyn.pt' # path to voice conversion model
+        diffvc_generator = DiffVC(params.n_mels, params.channels, params.filters, params.heads, 
+                params.layers, params.kernel, params.dropout, params.window_size, 
+                params.enc_dim, params.spk_dim, params.use_ref_t, params.dec_dim, 
+                params.beta_min, params.beta_max)
+        diffvc_generator = diffvc_generator.to(device)
+        diffvc_generator.load_state_dict(torch.load(vc_path))
+        diffvc_generator.eval()
+        
+        # loading HiFi-GAN vocoder
+        hfg_path = 'deepFake/DiffVC/checkpts/vocoder/'
+        with open(hfg_path + 'config.json') as f:
+            h = AttrDict(json.load(f))
+        
+        diffvc_hifigan_universal = HiFiGAN(h).to(device)
+        diffvc_hifigan_universal.load_state_dict(torch.load(hfg_path + 'generator')['generator'])
+
+        _ = diffvc_hifigan_universal.eval()
+        diffvc_hifigan_universal.remove_weight_norm()
+
+        # loading speaker encoder
+        enc_model_fpath = Path('deepFake/DiffVC/checkpts/spk_encoder/pretrained.pt')
+        spk_encoder.load_model(enc_model_fpath, device=device)
+
+        # loading source and reference wavs, calculating mel-spectrograms and speaker embeddings
+        def get_mel(wav):
+            wav = wav[:(wav.shape[0] // 256)*256]
+            wav = np.pad(wav, 384, mode='reflect')
+            stft = librosa.core.stft(y = wav, n_fft=1024, hop_length=256, win_length=1024, window='hann', center=False)
+            stftm = np.sqrt(np.real(stft) ** 2 + np.imag(stft) ** 2 + (1e-9))
+            mel_spectrogram = np.matmul(mel_basis, stftm)
+            log_mel_spectrogram = np.log(np.clip(mel_spectrogram, a_min=1e-5, a_max=None))
+            return log_mel_spectrogram
+        
+        def get_embed(wav_path):
+            wav_preprocessed = spk_encoder.preprocess_wav(wav_path)
+            embed = spk_encoder.embed_utterance(wav_preprocessed)
+            return embed
+
+        src_audio, _ = load(src_path, sr=22050)
+        mel_source = torch.from_numpy(get_mel(src_audio)).float().unsqueeze(0).to(device)
+        mel_source_lengths = torch.LongTensor([mel_source.shape[-1]]).to(device)
+
+        mel_target = torch.from_numpy(get_mel(tgt_audio.squeeze().detach().cpu().numpy())).float().unsqueeze(0).to(device)
+        mel_target_lengths = torch.LongTensor([mel_target.shape[-1]]).to(device)
+
+        embed_target = torch.from_numpy(get_embed(tgt_audio.squeeze().detach().cpu().numpy())).float().unsqueeze(0).to(device)
+
+        # performing voice conversion
+        def noise_median_smoothing(x, w=5):
+            y = np.copy(x)
+            x = np.pad(x, w, "edge")
+            for i in range(y.shape[0]):
+                med = np.median(x[i:i+2*w+1])
+                y[i] = min(x[i+w+1], med)
+            return y
+        
+        def mel_spectral_subtraction(mel_synth, mel_source, spectral_floor=0.02, silence_window=5, smoothing_window=5):
+            mel_len = mel_source.shape[-1]
+            energy_min = 100000.0
+            i_min = 0
+            for i in range(mel_len - silence_window):
+                energy_cur = np.sum(np.exp(2.0 * mel_source[:, i:i+silence_window]))
+                if energy_cur < energy_min:
+                    i_min = i
+                    energy_min = energy_cur
+            estimated_noise_energy = np.min(np.exp(2.0 * mel_synth[:, i_min:i_min+silence_window]), axis=-1)
+            if smoothing_window is not None:
+                estimated_noise_energy = noise_median_smoothing(estimated_noise_energy, smoothing_window)
+            mel_denoised = np.copy(mel_synth)
+            for i in range(mel_len):
+                signal_subtract_noise = np.exp(2.0 * mel_synth[:, i]) - estimated_noise_energy
+                estimated_signal_energy = np.maximum(signal_subtract_noise, spectral_floor * estimated_noise_energy)
+                mel_denoised[:, i] = np.log(np.sqrt(estimated_signal_energy))
+            return mel_denoised
+        
+        mel_encoded, mel_ = diffvc_generator.forward(mel_source, mel_source_lengths, mel_target, mel_target_lengths, embed_target, 
+                                            n_timesteps=30, mode='ml')
+        mel_synth_np = mel_.cpu().detach().squeeze().numpy()
+        mel_source_np = mel_.cpu().detach().squeeze().numpy()
+        mel = torch.from_numpy(mel_spectral_subtraction(mel_synth_np, mel_source_np, smoothing_window=1)).float().unsqueeze(0).to(device)
+        with torch.no_grad():
+            audio = diffvc_hifigan_universal.forward(mel).cpu().squeeze().clamp(-1, 1)
+
+        ta.save("results/after-vc-diffvc.wav", audio.unsqueeze(0), 22050)
+
+        return audio.unsqueeze(0).unsqueeze(0).to(device)
+    
+    def VQMIVC(self, tgt_audio, src_path):
+        import sys
+        import resampy
+        import kaldiio
+        import subprocess
+        import pyworld as pw
+        import soundfile as sf
+
+        sys.path.append('deepFake/VQMIVC')
+        from model_encoder import Encoder, Encoder_lf0
+        from model_decoder import Decoder_ac
+        from model_encoder import SpeakerEncoder as Encoder_spk
+        from spectrogram import logmelspectrogram
+
+        out_dir = 'results/vqmivc'
+        os.makedirs(out_dir, exist_ok=True)
+        out_filename = 'vqmivc'
+
+        encoder = Encoder(in_channels=80, channels=512, n_embeddings=512, z_dim=64, c_dim=256)
+        encoder_lf0 = Encoder_lf0()
+        encoder_spk = Encoder_spk()
+        decoder = Decoder_ac(dim_neck=64)
+        encoder.to(device)
+        encoder_lf0.to(device)
+        encoder_spk.to(device)
+        decoder.to(device)
+        
+        checkpoint_path = 'deepFake/VQMIVC/vqmivc_model/checkpoints/useCSMITrue_useCPMITrue_usePSMITrue_useAmpTrue/VQMIVC-model.ckpt-500.pt'
+        checkpoint = torch.load(checkpoint_path, map_location=lambda storage, loc: storage)
+        encoder.load_state_dict(checkpoint['encoder'])
+        encoder_spk.load_state_dict(checkpoint["encoder_spk"])
+        decoder.load_state_dict(checkpoint["decoder"])
+
+        encoder.eval()
+        encoder_spk.eval()
+        decoder.eval()
+
+        mel_stats = np.load('./deepFake/VQMIVC/mel_stats/stats.npy')
+        mean = mel_stats[0]
+        std = mel_stats[1]
+
+        def extract_logmel(wav, mean, std, fs=16000):
+            if fs != 16000:
+                wav = resampy.resample(wav, fs, 16000, axis=0)
+                fs = 16000
+            assert fs == 16000
+            peak = np.abs(wav).max()
+            if peak > 1.0:
+                wav /= peak
+            mel = logmelspectrogram(
+                        x=wav,
+                        fs=fs,
+                        n_mels=80,
+                        n_fft=400,
+                        n_shift=160,
+                        win_length=400,
+                        window='hann',
+                        fmin=80,
+                        fmax=7600,
+                    )
+            
+            mel = (mel - mean) / (std + 1e-8)
+            tlen = mel.shape[0]
+            frame_period = 160/fs*1000
+            f0, timeaxis = pw.dio(wav.astype('float64'), fs, frame_period=frame_period)
+            f0 = pw.stonemask(wav.astype('float64'), f0, timeaxis, fs)
+            f0 = f0[:tlen].reshape(-1).astype('float32')
+            nonzeros_indices = np.nonzero(f0)
+            lf0 = f0.copy()
+            lf0[nonzeros_indices] = np.log(f0[nonzeros_indices]) # for f0(Hz), lf0 > 0 when f0 != 0
+            mean, std = np.mean(lf0[nonzeros_indices]), np.std(lf0[nonzeros_indices])
+            lf0[nonzeros_indices] = (lf0[nonzeros_indices] - mean) / (std + 1e-8)
+            return mel, lf0
+
+
+        feat_writer = kaldiio.WriteHelper("ark,scp:{o}.ark,{o}.scp".format(o=str(out_dir)+'/feats.1'))
+        src_wav, sr = sf.read(src_path)
+        src_mel, src_lf0 = extract_logmel(src_wav, mean, std, sr)
+        ref_mel, _ = extract_logmel(tgt_audio.squeeze().detach().cpu().numpy(), mean, std, 22050)
+        src_mel = torch.FloatTensor(src_mel.T).unsqueeze(0).to(device)
+        src_lf0 = torch.FloatTensor(src_lf0).unsqueeze(0).to(device)
+        ref_mel = torch.FloatTensor(ref_mel.T).unsqueeze(0).to(device)
+        
+        with torch.no_grad():
+            print('ref_mel:', ref_mel.shape)
+            z, _, _, _ = encoder.encode(src_mel)
+            lf0_embs = encoder_lf0(src_lf0)
+            spk_emb = encoder_spk(ref_mel)
+            output = decoder(z, lf0_embs, spk_emb)
+            
+            feat_writer[out_filename+'_converted'] = output.squeeze(0).cpu().numpy()
+            feat_writer[out_filename+'_source'] = src_mel.squeeze(0).cpu().numpy().T
+            feat_writer[out_filename+'_reference'] = ref_mel.squeeze(0).cpu().numpy().T
+
+        feat_writer.close()
+        print('synthesize waveform...')
+        cmd = ['parallel-wavegan-decode', '--checkpoint', \
+            './deepFake/VQMIVC/vocoder/checkpoint-3000000steps.pkl', \
+            '--scp', f'{str(out_dir)}/feats.1.scp', '--outdir', str(out_dir)]
+                #'--feats-scp', f'{str(out_dir)}/feats.1.scp', '--outdir', str(out_dir)]
+        subprocess.call(cmd)
+
+        wav, sr = ta.load(f'{str(out_dir)}/{out_filename}_converted_gen.wav')
+        resampler = torchaudio.transforms.Resample(sr, 22050)
+        wav = resampler(wav)
+        ta.save("results/after-vc-vqmivc.wav", wav, 22050)
+        return wav.unsqueeze(0).to(device)
         
 
     def forward(self, x, attack_choice=1, ratio=10, src_path = None):
@@ -547,6 +763,8 @@ class distortion(nn.Module):
             27: lambda x: self.VoiceConversion(x, src_path),
             28: lambda x: self.AutoVC(x, src_path),
             29: lambda x: self.YourTTS(x),
+            30: lambda x: self.DiffVC(x, src_path),
+            31: lambda x: self.VQMIVC(x, src_path),
         }
 
         x = x.clamp(-1, 1)

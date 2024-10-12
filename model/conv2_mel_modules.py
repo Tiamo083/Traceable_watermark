@@ -196,7 +196,7 @@ class Decoder(nn.Module):
             # 传输损失
             # y_d是audio
             # y_d_d = self.dl(y_d, self.robust)
-            y_d_d = self.dl(y_d, attack_choice = attack_type, ratio = 10, tgt_path = '/amax/home/Tiamo/Traceable_watermark/Speech-Backbones/DiffVC/example/8534_216567_000015_000010.wav')
+            y_d_d = self.dl(y_d, attack_choice = attack_type, ratio = 10, tgt_path = 'Speech-Backbones/DiffVC/example/8534_216567_000015_000010.wav')
         else:
             y_d_d = y_d
         

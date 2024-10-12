@@ -49,6 +49,6 @@ conv2:
 
 
 test:
-  model_path: "/amax/home/Tiamo/Traceable_watermark/results/ckpt/pth" 
+  model_path: "results/ckpt/pth" 
   model_name: False
   index: -1

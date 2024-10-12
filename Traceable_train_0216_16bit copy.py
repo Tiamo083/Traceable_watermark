@@ -215,10 +215,10 @@ def main(args, configs):
             
             if step % show_circle == 0:
                 # save generated audios
-                save_audio_path = os.path.join("/amax/home/Tiamo/Traceable_watermark/results/wm_speech", "attack:{}_epoch:{}.wav".format(train_config["attack_type"], ep))
+                save_audio_path = os.path.join("results/wm_speech", "attack:{}_epoch:{}.wav".format(train_config["attack_type"], ep))
                 torchaudio.save(save_audio_path, src = encoded.detach().squeeze(1).to("cpu"), sample_rate = sample["trans_sr"])
 
-                fragile_audio_path = os.path.join("/amax/home/Tiamo/Traceable_watermark/results/wm_speech", "fragile_epoch:{}.wav".format(ep))
+                fragile_audio_path = os.path.join("results/wm_speech", "fragile_epoch:{}.wav".format(ep))
                 torchaudio.save(fragile_audio_path, src = fragile_encoded.detach().squeeze(1).to("cpu"), sample_rate = sample["trans_sr"])
                 # decoder_acc = (decoded[0] >= 0).eq(msg >= 0).sum().float() / msg.numel()
                 decoder_acc = [((decoded[0] >= 0).eq(msg >= 0).sum().float() / msg.numel()).item(), ((decoded[1] >= 0).eq(msg >= 0).sum().float() / msg.numel()).item()]

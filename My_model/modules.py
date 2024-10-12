@@ -255,7 +255,7 @@ class Decoder(nn.Module):
             y_d = y
         
         if self.robust:
-            y_d_d = self.dl(y_d, attack_choice = attack_type, ratio = 10, src_path = '/amax/home/Tiamo/Traceable_watermark/Speech-Backbones/DiffVC/example/8534_216567_000015_000010.wav')
+            y_d_d = self.dl(y_d, attack_choice = attack_type, ratio = 10, src_path = 'Speech-Backbones/DiffVC/example/8534_216567_000015_000010.wav')
         else:
             y_d_d = y_d
         

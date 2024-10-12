@@ -122,7 +122,7 @@ def main(args, configs):
     global_step = 0
     valid_len = len(audios_loader)
     # --------------- get pth
-    checkpoint = torch.load("/amax/home/Tiamo/Traceable_watermark/results/ckpt/pth/none-conv24_ep_20_2023-12-19_05_02_45.pth")
+    checkpoint = torch.load("results/ckpt/pth/none-conv24_ep_20_2023-12-19_05_02_45.pth")
     encoder.load_state_dict(checkpoint["encoder"])
     decoder.load_state_dict(checkpoint["decoder"])
     discriminator.load_state_dict(checkpoint["discriminator"])
