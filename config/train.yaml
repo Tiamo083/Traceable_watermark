@@ -14,6 +14,8 @@ path:
   ckpt: "./results/ckpt/half_vunlerable_watermark"
   log_path: "results/log/"
 
+finetune_both_encoder_decoder: True
+load_ckpt_path: ""
 
 watermark:
   length: 32
