@@ -28,10 +28,11 @@ class model_SVD(nn.Module):
     
     def forward(self, w):
         w_alt = self.U @ torch.diag(nn.functional.relu(self.S + self.scale * self.delta)) @ self.Vh
-
+        return w_alt.view(*self.w_shape)
 
 def apply_SVD(module, param_name = "weight", scale = 1.0):
-    nn.utils.parametrize.register_parametrization(module, param_name, model_SVD(module, param_name, scale))
+    after_svd_model = model_SVD(module, param_name, scale)
+    nn.utils.parametrize.register_parametrization(module, param_name, after_svd_model)
     getattr(module.parametrizations, param_name).original.data = torch.empty(0)
     return module
 
@@ -39,7 +40,7 @@ def convert_to_SVD(model):
     learnable_parameters = nn.ParameterList()
     learnable_parameters_1d = nn.ParameterList()
     for module in model.modules():
-        if isinstance(module, nn.Conv2d) or isinstance(module, nn.Linear):
+        if isinstance(module, nn.Conv2d): #  or isinstance(module, nn.Linear):
             apply_SVD(module, "weight")
             learnable_parameters.append(module.parametrizations.weight[0].delta)
         elif isinstance(module, nn.LayerNorm) or isinstance(module, nn.GroupNorm):
@@ -48,6 +49,10 @@ def convert_to_SVD(model):
         elif isinstance(module, nn.MultiheadAttention):
             apply_SVD(module, "in_proj_weight")
             learnable_parameters.append(module.parametrizations.in_proj_weight[0].delta)
+        elif isinstance(module, nn.Linear):
+            apply_SVD(module, "bias")
+            learnable_parameters.append(module.parametrizations.bias[0].delta)
+            
     return learnable_parameters, learnable_parameters_1d
 
 def load_model_for_svd(model):

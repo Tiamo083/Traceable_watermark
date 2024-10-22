@@ -5,6 +5,7 @@ import numpy as np
 sys.path.append('./')
 import argparse
 import math
+import shutil
 import socket
 import torch
 import json
@@ -23,6 +24,7 @@ from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import StepLR
 from torch.nn.functional import mse_loss
 
+from utils.tools import save_op
 from model.loss import Loss_identity
 from dataset.data import wav_dataset as used_dataset
 from My_model.model_SVD import load_model_for_svd
@@ -42,15 +44,17 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def load_ckpt(encoder, decoder, config):
-    ckpt_path = config["load_checkpoint_path"]
-    model_state_dict = torch.load(ckpt_path)
+    ckpt_path = config["load_ckpt_path"]
+    model_state_dict = torch.load(ckpt_path, map_location=device)
     encoder.load_state_dict(model_state_dict["encoder"])
     decoder.load_state_dict(model_state_dict["decoder"])
 
+    encoder = encoder.to(device)
+    decoder = decoder.to(device)
     return encoder, decoder
 
 def finetune(args, configs):
-    print("start fnetuning")
+    print("start finetuning")
     process_config, model_config, train_config = configs
     pre_step = 0
 
@@ -76,6 +80,7 @@ def finetune(args, configs):
 
     encoder = Encoder(process_config, model_config, msg_length, win_dim, embedding_dim, nlayers_encoder=nlayers_encoder, attention_heads=attention_heads_encoder).to(device)
     decoder = Decoder(process_config, model_config, msg_length, win_dim, embedding_dim, nlayers_decoder=nlayers_decoder, attention_heads=attention_heads_decoder).to(device)
+    encoder, decoder = load_ckpt(encoder, decoder, train_config)
     learnable_parameters_encoder = load_model_for_svd(encoder)
     learnable_parameters_decoder = load_model_for_svd(decoder)
     params_to_optimize_encoder = chain(learnable_parameters_encoder["params"], learnable_parameters_encoder["params_1d"])
@@ -99,7 +104,7 @@ def finetune(args, configs):
             lr = train_config["optimize"]["lr"]
         )
 
-    encoder, decoder = load_ckpt(encoder, decoder, train_config)
+    
     lr_sched = StepLR(finetune_optim, step_size=train_config["optimize"]["step_size"], gamma=train_config["optimize"]["gamma"])
 
     # -------------- Loss 
@@ -115,8 +120,9 @@ def finetune(args, configs):
 
     # ---------------- train
     print(logging_mark + "\t" + "Begin Trainging" + "\t" + logging_mark)
-    epoch_num = train_config["iter"]["epoch"]
+    epoch_num = train_config["iter"]["finetune_epoch"]
     save_circle = train_config["iter"]["save_circle"]
+    save_step = train_config["iter"]["save_step"]
     show_circle = train_config["iter"]["show_circle"]
     lambda_e = train_config["optimize"]["lambda_e"]
     lambda_m = train_config["optimize"]["lambda_m"]
@@ -125,7 +131,7 @@ def finetune(args, configs):
     
     if train_config["adv"]:
         discriminator = Discriminator(process_config).to(device)
-        ckpt_path = train_config["load_checkpoint_path"]
+        ckpt_path = train_config["load_ckpt_path"]
         model_state_dict = torch.load(ckpt_path)
         discriminator.load_state_dict(model_state_dict["discriminator"])
 
@@ -137,7 +143,7 @@ def finetune(args, configs):
         print('Finetune Epoch {}/{}'.format(ep, epoch_num))
 
         for i, sample in enumerate(train_audio_loader):
-            gloabl_step += 1
+            global_step += 1
             step += 1
             # ---------------- build watermark
             fragile_msg = np.random.choice([0, 1], [batch_size, 1, int(msg_length // 2)])
@@ -220,6 +226,14 @@ def finetune(args, configs):
             wandb.log({'snr': snr})
             wandb.log({'d_loss_on_encoded': d_loss_on_encoded})
             wandb.log({'d_loss_on_cover': d_loss_on_cover})
+
+        if ep % save_circle == 0:
+            if not model_config["structure"]["ab"]:
+                path = os.path.join(train_config["path"]["finetune_ckpt"], 'pth')
+            else:
+                path = os.path.join(train_config["path"]["finetune_ckpt"], 'pth_ab')
+            save_op(path, ep, encoder, decoder, discriminator,finetune_optim, train_config["attack_type"])
+            shutil.copyfile(os.path.realpath(__file__), os.path.join(path, os.path.basename(os.path.realpath(__file__)))) # save training scripts
 
         with torch.no_grad():
             encoder.eval()

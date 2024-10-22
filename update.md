@@ -23,3 +23,5 @@
 10 月 16 日下午 by lingxiaoyu (finetune框架搭建)
 - 创建新的finetune.py文件，用于现有模型微调
 - 增加的方法：使用SVD方法分割参数，把训练参数指定为对角矩阵，SVD方法详见./My_model/model_SVD.py
+
+10 月 22 日下午 by lingxiaoyu (finetune框架debug完成，并开始finetune)
