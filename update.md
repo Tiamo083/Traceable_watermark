@@ -25,3 +25,5 @@
 - 增加的方法：使用SVD方法分割参数，把训练参数指定为对角矩阵，SVD方法详见./My_model/model_SVD.py
 
 10 月 22 日下午 by lingxiaoyu (finetune框架debug完成，并开始finetune)
+- debug完finetune.py文件，开始DiffVC下的模型finetune
+- 存在一个问题：nn.linear中的weight会被放到cpu上，并且nn.linear.weight没有requires_grad方法。待解决(现在考虑不更新nn.linear的weight，转而更新nn.linear.bias)
