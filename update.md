@@ -27,3 +27,6 @@
 10 月 22 日下午 by lingxiaoyu (finetune框架debug完成，并开始finetune)
 - debug完finetune.py文件，开始DiffVC下的模型finetune
 - 存在一个问题：nn.linear中的weight会被放到cpu上，并且nn.linear.weight没有requires_grad，这个问题仍待解决(现在暂时的方案为：不更新nn.linear的weight，转而更新nn.linear.bias)
+
+10 月 26 日 by lingxiaoyu (finetune的效果不明显，效果不佳，可能是一个decoder同时提取鲁棒和脆弱水印产生了互相影响，因此构建两个decoder分别提取鲁棒和脆弱水印)
+- 构建multi_decoder_half_vulnerable.py、configs/multi_decoder_train.yaml
