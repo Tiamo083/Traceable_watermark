@@ -24,9 +24,22 @@ def save_op(path, epoch, encoder, decoder, discriminator, en_de_op, robust_type)
             "discriminator": discriminator.state_dict(),
             "en_de_op": en_de_op.state_dict(),
         },
-        os.path.join(path,"none-"+ encoder.name + str(robust_type) + "_ep_{}_{}.pth".format(epoch, now.strftime("%Y-%m-%d_%H_%M_%S"))),
+        os.path.join(path,"none-"+ encoder.name + "attack_type_" + str(robust_type) + "_ep_{}_{}.pth".format(epoch, now.strftime("%Y-%m-%d_%H_%M_%S"))),
     )
 
+def save_multi_decoder_op(path, epoch, encoder, robust_decoder, fragile_decoder, discriminator, en_de_op, robust_type):
+    if not os.path.exists(path): os.makedirs(path)
+    now = datetime.datetime.now()
+    torch.save(
+        {
+            "encoder": encoder.state_dict(),
+            "robust_decoder": robust_decoder.state_dict(),
+            "fragile_decoder": fragile_decoder.state_dict(),
+            "discriminator": discriminator.state_dict(),
+            "en_de_op": en_de_op.state_dict(),
+        },
+        os.path.join(path,"multi_deocder-"+ encoder.name + "attack_type_" + str(robust_type) + "_ep_{}_{}.pth".format(epoch, now.strftime("%Y-%m-%d_%H_%M_%S"))),
+    )
 
 def log(
     logger, step=None, losses=None, fig=None, audio=None, sampling_rate=22050, tag=""

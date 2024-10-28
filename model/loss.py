@@ -43,6 +43,17 @@ class Loss_identity(nn.Module):
 
         return embedding_loss, no_attack_loss, attack_r_loss, real_f_loss
 
+    def multi_de_loss(self, x, w_x, msg, attack_rec_robust_msg, no_attack_rec_robust_msg, attack_rec_fragile_msg, no_attack_rec_fragile_msg):
+        embedding_loss = self.embedding_loss(x, w_x)
+        robust_msg, fragile_msg = torch.chunk(input = msg, chunks = 2, dim = 2)
+        attack_r_loss = self.msg_loss(robust_msg, attack_rec_robust_msg)
+        no_attack_r_loss = self.msg_loss(robust_msg, no_attack_rec_robust_msg)
+        
+        attack_f_loss = self.msg_loss(fragile_msg, attack_rec_fragile_msg)
+        no_attack_f_loss = self.msg_loss(fragile_msg, no_attack_rec_fragile_msg)
+        
+        return embedding_loss, no_attack_r_loss, attack_r_loss, no_attack_f_loss, attack_f_loss
+
 
 class Loss_identity_3(nn.Module):
     def __init__(self, train_config):
