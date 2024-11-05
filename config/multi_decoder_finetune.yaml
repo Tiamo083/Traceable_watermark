@@ -1,0 +1,62 @@
+dataset: "librispeech"
+
+attack_type: 30
+micro: 2
+sigma: 3
+
+adv: True
+
+
+path:
+  raw_path: "./dataset/LibriSpeech_wav"
+  raw_path_test: "./experiments/cloned_speechs"
+  wm_speech: "./results/wm_speech"
+  ckpt: "./results/ckpt/half_vunlerable_watermark_multi_decoder"
+  finetune_ckpt: "./results/ckpt/multi_decoder_finetune_ckpt"
+  log_path: "results/log/"
+
+finetune_both_encoder_decoder: True
+# 没有任何dl的ckpt
+# load_ckpt_path: "/amax/home/Tiamo/Traceable_watermark/results/ckpt/half_vunlerable_watermark/pth/none-conv20_ep_20_2024-10-13_20_01_44.pth"
+
+#有resample后的ckpt
+# load_ckpt_path: "/amax/home/Tiamo/Traceable_watermark/results/ckpt/half_vunlerable_watermark/pth/none-conv27_ep_20_2024-10-23_22_11_38.pth"
+# multi_decoder ckpt
+load_ckpt_path: "/amax/home/Tiamo/Traceable_watermark/results/ckpt/half_vunlerable_watermark_multi_decoder/pth/multi_deocder-conv2attack_type_7_ep_10_2024-10-30_13_37_46.pth"
+
+watermark:
+  length: 32
+
+
+optimize:
+  lr: 0.0002
+  lambda_e: 1.
+  lambda_m: 10.
+  lambda_f_m: 25
+  # lambda_m: 0.01
+  lambda_no_m: 0.01
+  lambda_a: 0.01
+  batch_size: 1
+  step_size: 5000 # large value means do not decay
+  gamma: 0.98
+  betas: [0.9, 0.98]
+  eps: 0.000000001
+  weight_decay: 0.0
+  grad_clip_thresh: 1.0
+  grad_acc_step: 1
+  up_step: 4000
+  anneal_steps: [300000, 400000, 500000]
+  anneal_rate: 0.3
+  lr_disc: 0.00002
+  alpha: 10
+  train_size: 31000
+
+
+iter:
+  finetune_epoch: 20
+  epoch: 20
+  # epoch: 100
+  save_step: 200
+  save_circle: 1
+  show_circle: 100
+  val_circle: 100

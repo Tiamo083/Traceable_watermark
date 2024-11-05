@@ -30,3 +30,6 @@
 
 10 月 26 日 by lingxiaoyu (finetune的效果不明显，效果不佳，可能是一个decoder同时提取鲁棒和脆弱水印产生了互相影响，因此构建两个decoder分别提取鲁棒和脆弱水印)
 - 构建multi_decoder_half_vulnerable.py、configs/multi_decoder_train.yaml
+
+10 月 30 日 by lingxiaoyu 
+- 构建multi_decoder_finetune.py，根据multi_decoder的保存路径开展finetune(finetune 几个epoch并检查效果)
