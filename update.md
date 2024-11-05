@@ -33,3 +33,4 @@
 
 10 月 30 日 by lingxiaoyu 
 - 构建multi_decoder_finetune.py，根据multi_decoder的保存路径开展finetune(finetune 几个epoch并检查效果)
+- 构建multi_decoder_one_watermark_finetune.py, 使用两个decoder提取同一个水印
