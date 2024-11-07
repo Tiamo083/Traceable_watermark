@@ -1,6 +1,6 @@
 dataset: "librispeech"
 
-attack_type: 31
+attack_type: 7
 micro: 2
 sigma: 3
 
@@ -23,7 +23,7 @@ finetune_both_encoder_decoder: True
 load_ckpt_path: "/amax/home/Tiamo/Traceable_watermark/results/ckpt/half_vunlerable_watermark/pth/none-conv27_ep_20_2024-10-23_22_11_38.pth"
 
 watermark:
-  length: 16
+  length: 32
 
 
 optimize:

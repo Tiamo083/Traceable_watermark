@@ -23,7 +23,7 @@ finetune_both_encoder_decoder: True
 load_ckpt_path: "/amax/home/Tiamo/Traceable_watermark/results/ckpt/half_vunlerable_watermark_multi_decoder_one_wm/pth/multi_deocder-conv2attack_type_7_ep_10_2024-11-03_09_17_46.pth"
 
 watermark:
-  length: 16
+  length: 32
 
 
 optimize:

@@ -248,19 +248,19 @@ class Decoder(nn.Module):
     
     def forward(self, y, global_step, attack_type):
         y_identity = y.clone()
-        if global_step > self.vocoder_step:
-            y_mel = self.mel_transform.mel_spectrogram(y.squeeze(1))
-            y_d = (self.mel_transform.griffin_lim(magnitudes=y_mel)).unsqueeze(1)
+        # if global_step > self.vocoder_step:
+        #     y_mel = self.mel_transform.mel_spectrogram(y.squeeze(1))
+        #     y_d = (self.mel_transform.griffin_lim(magnitudes=y_mel)).unsqueeze(1)
+        # else:
+        #     y_d = y
+        
+        if self.robust:
+            y_d = self.dl(y, attack_choice = attack_type, ratio = 10, src_path = 'Speech-Backbones/DiffVC/example/8534_216567_000015_000010.wav')
         else:
             y_d = y
         
-        if self.robust:
-            y_d_d = self.dl(y_d, attack_choice = attack_type, ratio = 10, src_path = 'Speech-Backbones/DiffVC/example/8534_216567_000015_000010.wav')
-        else:
-            y_d_d = y_d
-        
         # 做傅里叶变换
-        spect, phase = self.stft.transform(y_d_d)
+        spect, phase = self.stft.transform(y_d)
 
         extracted_wm = self.EX(spect.unsqueeze(1)).squeeze(1)
         msg = torch.mean(extracted_wm, dim=2, keepdim=True).transpose(1,2)
