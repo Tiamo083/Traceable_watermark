@@ -1,7 +1,7 @@
 /dataset/LibriSpeech/*
 /dataset/LibriSpeech_wav/*
 /dataset/*
-/autovc/*
+autovc/*
 /demo/*
 hifigan/model/VCTK_V1/generator_v1
 /results/*
