@@ -21,3 +21,4 @@ deepFake/VQMIVC/vocoder/checkpoint-3000000steps.pkl
 ./deepFake/VQMIVC/vqmivc_model/checkpoints/useCSMITrue_useCPMITrue_usePSMITrue_useAmpTrue/VQMIVC-model.ckpt-500.pt
 ./deepFake/VQMIVC/vqmivc_model/vocoder/checkpoint-3000000steps.pkl
 ./deepFake/DiffVC/checkpts/spk_encoder/pretrained.pt
+./deepFake/autovc/pretrained_models/*

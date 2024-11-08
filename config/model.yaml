@@ -49,6 +49,6 @@ conv2:
 
 
 test:
-  model_path: "results/ckpt/pth" 
+  model_path: "results/ckpt/half_vunlerable_watermark/pth" 
   model_name: False
   index: -1

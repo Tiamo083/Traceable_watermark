@@ -34,3 +34,6 @@
 10 月 30 日 by lingxiaoyu 
 - 构建multi_decoder_finetune.py，根据multi_decoder的保存路径开展finetune(finetune 几个epoch并检查效果)
 - 构建multi_decoder_one_watermark_finetune.py, 使用两个decoder提取同一个水印
+
+11 月 8 日 by yuFeng
+- 添加了官方实现的 AutoVC ，但是这个版本的 VC 效果不太好，未上传的模型参数文件在 `./deepFake/autovc/pretrained_models/*` 下

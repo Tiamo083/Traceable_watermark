@@ -433,75 +433,36 @@ class distortion(nn.Module):
 
 
     def AutoVC(self, tgt_audio, src_path):
+        src_path = "Speech-Backbones/DiffVC/example/p226_005.wav"
         import sys
-        from math import ceil
-        sys.path.append("autovc")
-        from model_bl import D_VECTOR
-        from model_vc import Generator
-        from synthesis import build_model
-        from synthesis import wavegen
-        """from nemo.collections.tts.models import HifiGanModel
-        vocoder = HifiGanModel.from_pretrained(model_name = "nvidia/tts_hifigan")"""
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        
-        src_audio, _ = torchaudio.load(src_path)
-        src_audio = src_audio.to(device)
-        # src_audio, _ = load(src_path, sr=22050)
-        # src_audio = torch.from_numpy(src_audio).to(device)
-        
-        G = Generator(32, 256, 512, 32).eval().to(device)
-        
-        g_checkpoint = torch.load("autovc/autovc.ckpt",map_location='cuda:0')
-        G.load_state_dict(g_checkpoint['model'])
-            
-        def pad_seq(x, base = 32):
-            len_out = int(base * ceil(float(x.shape[0])/base))
-            len_pad = len_out - x.shape[0]
-            assert len_pad >= 0
-            return F.pad(x, [0, 0, 0, len_pad]), len_pad
-            # return np.pad(x, ((0, len_pad), (0, 0)), 'constant'), len_pad
+        sys.path.append('deepFake/autovc')
+        from converision import get_vc_spect
+        from make_metadata import get_emb
+        from make_spect import get_spect, get_spect_from_wav
 
-        mel_transform = TacotronSTFT(filter_length=1024, hop_length=256, win_length=1024).to(device)
+        resampler = torchaudio.transforms.Resample(orig_freq=22050, new_freq=16000)
 
-        tgt_mel = mel_transform.mel_spectrogram(tgt_audio.squeeze(1))
-        tgt_mel = torch.permute(tgt_mel, (0, 2, 1))
-        src_mel = mel_transform.mel_spectrogram(src_audio)
-        src_mel = torch.permute(src_mel, (0, 2, 1))
-
-        tgt_metadata = make_metadata(tgt_mel)
-        src_metadata = make_metadata(src_mel)
-
-        x_org = src_mel.squeeze(0)
-        x_org, len_pad = pad_seq(x_org)
-
-        utter_org = x_org.unsqueeze(0)
-        emb_org = src_metadata.unsqueeze(0)
-        emb_trg = tgt_metadata.unsqueeze(0)
-        
-        """utter_org = torch.from_numpy(x_org[np.newaxis, :, :]).to(device)
-        emb_org = torch.from_numpy(src_metadata[np.newaxis, :]).to(device)
-
-        emb_trg = torch.from_numpy(tgt_metadata[np.newaxis, :]).to(device)"""
-        with torch.no_grad():
-            _, x_identic_psnt, _ = G(utter_org, emb_org, emb_trg)
-
-
-        if len_pad == 0:
-            utter_trg = x_identic_psnt[0, :, :, :]
+        src_audio, _ = sf.read(src_path)
+        src_spectrum = get_spect_from_wav(src_audio)
+        src_embedding = get_emb(src_spectrum)
+    
+        tgt_audio = resampler(tgt_audio.squeeze(0).cpu())
+        if tgt_audio.shape[0] == 1:
+            tgt_audio = tgt_audio.squeeze(0).numpy()
         else:
-            utter_trg = x_identic_psnt[0, :, :-len_pad, :]
-        
-        utter_trg = utter_trg.permute(0, 2, 1)
-        audio = mel_transform.griffin_lim(magnitudes=utter_trg).unsqueeze(1)
+            raise ValueError("The input audio has more than one channel")
 
-        """
-        audio = vocoder.convert_spectrogram_to_audio(spec = utter_trg).unsqueeze(0)"""
-        """model = build_model().to(device)
-        checkpoint = torch.load("/amax/home/Tiamo/Traceable_watermark/autovc/checkpoint_step001000000_ema.pth")
-        model.load_state_dict(checkpoint["state_dict"])
+        tgt_spectrum = get_spect_from_wav(tgt_audio)
+        tgt_embdedding = get_emb(tgt_spectrum)
 
-        waveform = wavegen(model, c = utter_trg)"""
-        return audio
+        vc_spectrum = get_vc_spect(src_spectrum, src_embedding, tgt_embdedding, device)
+
+        sys.path.append('deepFake/autovc/hifi_gan')
+        from inference_e2e import inference_from_spec
+
+        audio = inference_from_spec(vc_spectrum.T, device)
+        return audio.unsqueeze(0).to(device)
+
     
     def YourTTS(self, tgt_audio):
         import torch, gc
@@ -514,6 +475,7 @@ class distortion(nn.Module):
             wav = tts.tts(text = "Hello world, my name is john, nice to meet you", speaker_wav = tgt_audio, language = "en").to(device)
         return wav.unsqueeze(0).unsqueeze(0)
     
+    # DiffVC: 22050Hz
     def DiffVC(self, tgt_audio, src_path):
         mel_basis = librosa_mel_fn(sr = 22050, n_fft = 1024, n_mels = 80, fmin = 0, fmax = 8000)
         import sys
@@ -621,6 +583,7 @@ class distortion(nn.Module):
 
         return audio.unsqueeze(0).unsqueeze(0).to(device)
     
+    # VQMIVC: 16000Hz
     def VQMIVC(self, tgt_audio, src_path):
         import sys
         import resampy
@@ -764,7 +727,7 @@ class distortion(nn.Module):
             28: lambda x: self.AutoVC(x, src_path),
             29: lambda x: self.YourTTS(x),
             30: lambda x: self.DiffVC(x, src_path),
-            31: lambda x: self.VQMIVC(x, src_path),
+            31: lambda x: self.VQMIVC(x, src_path)
         }
 
         x = x.clamp(-1, 1)
