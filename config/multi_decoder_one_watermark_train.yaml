@@ -1,6 +1,6 @@
 dataset: "librispeech"
 
-attack_type: 30
+attack_type: 28
 micro: 2
 sigma: 3
 
@@ -11,7 +11,7 @@ path:
   raw_path: "./dataset/LibriSpeech_wav"
   raw_path_test: "./experiments/cloned_speechs"
   wm_speech: "./results/wm_speech"
-  ckpt: "./results/ckpt/half_vunlerable_watermark_multi_decoder_one_wm"
+  ckpt: "./results/ckpt/half_vunlerable_watermark_multi_decoder_one_wm/dl_AutoVC"
   finetune_ckpt: "./results/ckpt/finetune_ckpt"
   log_path: "results/log/"
 

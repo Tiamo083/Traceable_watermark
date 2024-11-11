@@ -60,7 +60,25 @@ class UpSample(nn.Module):
 
         x = self.conv(x)
         return x
-    
+
+
+class MsgUpSample(nn.Module):
+    def __init__(self, out_channels, bilinear=True):
+        super(MsgUpSample, self).__init__()
+
+class MsgDownSample(nn.Module):
+    def __init__(self, in_channels, bilinear=True):
+        super(MsgDownSample, self).__init__()
+
+class MsgDiffusion(nn.Module):
+    def __init__(self):
+        super(MsgDiffusion, self).__init__()
+
+class ReversedDiffusion(nn.Module):
+    def __init__(self):
+        super(ReversedDiffusion, self).__init__()
+
+
 class OutConv(nn.Module):
     def __init__(self, in_channels, out_channels):
         super(OutConv, self).__init__()
@@ -71,7 +89,7 @@ class OutConv(nn.Module):
 
 
 class Unet_wm_embedder(nn.Module):
-    def __init__(self, Unet_configs, n_channels, n_classes, bilinear=True):
+    def __init__(self, n_channels, n_classes, bilinear=True):
         super(Unet_wm_embedder, self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes
@@ -84,18 +102,67 @@ class Unet_wm_embedder(nn.Module):
         self.down_4 = DownSample(512, 1024)
 
         self.up_1 = UpSample(1024, 512, bilinear)
-        self.up_2 = UpSample(1024, 512, bilinear)
-        self.up_3 = UpSample(1024, 512, bilinear)
-        self.up_4 = UpSample(1024, 512, bilinear)
+        self.up_2 = UpSample(512, 256, bilinear)
+        self.up_3 = UpSample(256, 128, bilinear)
+        self.up_4 = UpSample(128, 64, bilinear)
 
         self.outc = OutConv(64, n_classes)
-        self.msg_diffusion_layer = 
+
+        self.msg_diffusion_layer = MsgDiffusion()
+        self.msg_up_1 = MsgUpSample(512, bilinear)
+        self.msg_up_2 = MsgUpSample(256, bilinear)
+        self.msg_up_3 = MsgUpSample(128, bilinear)
+        self.msg_up_4 = MsgUpSample(64, bilinear)
         
 
     def forward(self, spect, msg):
         # input spect shape:[batch_size(1), 1, 513, x]
         # input_msg shape:[batch_size(1), 1, msg_length]
         msg = self.msg_diffusion_layer(msg)
+        msg1 = self.msg_up_1(msg)
+        msg2 = self.msg_up_2(msg)
+        msg3 = self.msg_up_3(msg)
+        msg4 = self.msg_up_4(msg)
+
+        x1 = self.inc(spect)
+        x2 = self.down_1(x1)
+        x3 = self.down_2(x2)
+        x4 = self.down_3(x3)
+        x5 = self.down_4(x4)
+
+        x = self.up_1(x5, x4, msg4)
+        x = self.up_2(x, x3, msg3)
+        x = self.up_3(x, x2, msg2)
+        x = self.up_4(x, x1, msg1)
+        encoded_spect = self.outc(x)
+
+        return encoded_spect
+
+
+class Unet_wm_extractor(nn.Module):
+    def __init__(self, n_channels, n_classes, bilinear=True):
+        super(Unet_wm_extractor, self).__init__()
+        self.n_channels = n_channels
+        self.n_classes = n_classes
+        self.bilinear = bilinear
+
+        self.inc = DoubleConv(n_channels, 64)
+        self.down_1 = DownSample(64, 128)
+        self.down_2 = DownSample(128, 256)
+        self.down_3 = DownSample(256, 512)
+        self.down_4 = DownSample(512, 1024)
+
+        self.up_1 = UpSample(1024, 512, bilinear)
+        self.up_2 = UpSample(512, 256, bilinear)
+        self.up_3 = UpSample(256, 128, bilinear)
+        self.up_4 = UpSample(128, 64, bilinear)
+
+        self.outc = OutConv(64, n_classes)
+
+        self.msg_down = MsgDownSample(n_classes, bilinear)
+        self.reversed_diffusion = ReversedDiffusion()
+
+    def forward(self, spect):
         x1 = self.inc(spect)
         x2 = self.down_1(x1)
         x3 = self.down_2(x2)
@@ -106,17 +173,10 @@ class Unet_wm_embedder(nn.Module):
         x = self.up_2(x, x3)
         x = self.up_3(x, x2)
         x = self.up_4(x, x1)
-        logits = self.outc(x)
+        decoded_spect = self.outc(x)
 
-        return logits
+        msg = self.msg_down(decoded_spect)
+        msg = self.reversed_diffusion(msg)
 
-
-class Unet_wm_extractor(nn.Module):
-    def __init__(self, Unet_wm_extractor_configs, input_channels):
-        super(Unet_wm_extractor, self).__init__()
-    
-    def forward(self, spect):
-        wm = spect
-
-        return wm
+        return msg
         

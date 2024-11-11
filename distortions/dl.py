@@ -433,7 +433,6 @@ class distortion(nn.Module):
 
 
     def AutoVC(self, tgt_audio, src_path):
-        src_path = "Speech-Backbones/DiffVC/example/p226_005.wav"
         import sys
         sys.path.append('deepFake/autovc')
         from converision import get_vc_spect

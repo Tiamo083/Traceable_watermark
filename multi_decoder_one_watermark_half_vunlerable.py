@@ -247,6 +247,8 @@ def main(args, configs):
                 wandb.log({'d_loss_on_encoded': d_loss_on_encoded})
                 wandb.log({'d_loss_on_cover': d_loss_on_cover})
 
+                wandb.log({'train_data_attack_robust_msg_loss': losses[2]})
+                wandb.log({'train_data_attack_fragile_msg_loss': losses[4]})
                 
         # if ep % save_circle == 0 or ep == 1 or ep == 2:
         if ep % save_circle == 0:
