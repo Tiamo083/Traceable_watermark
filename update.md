@@ -37,3 +37,6 @@
 
 11 月 8 日 by yuFeng
 - 添加了官方实现的 AutoVC ，但是这个版本的 VC 效果不太好，未上传的模型参数文件在 `./deepFake/autovc/pretrained_models/*` 下
+
+11 月 11 日 by yuFeng
+- 添加了 [VALL-E-X](https://github.com/Plachtaa/VALL-E-X)，已将模型参数添加到 gitignore，理论上第一次运行时会自己下载，不过这个好像有点慢，不知道是不是现在 GPU 太多人用的问题qwq

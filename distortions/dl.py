@@ -690,7 +690,25 @@ class distortion(nn.Module):
         wav = resampler(wav)
         ta.save("results/after-vc-vqmivc.wav", wav, 22050)
         return wav.unsqueeze(0).to(device)
-        
+    
+    def VALLEX(self, tgt_audio):
+        import sys
+        sys.path.append('deepFake/VALL-E-X')
+        from utils.prompt_making import make_prompt_by_audio
+        from utils.generation import SAMPLE_RATE, generate_audio, preload_models
+        from scipy.io.wavfile import write as write_wav
+
+        make_prompt_by_audio(name="vallex", wav_pr=tgt_audio.squeeze(0).cpu(), sr=22050)
+        preload_models()
+        text_prompt = """
+        Hello world, my name is john, nice to meet you.
+        """
+        audio = generate_audio(text_prompt, prompt="vallex")
+        result = torch.tensor(audio).unsqueeze(0).cpu()
+        resampler = torchaudio.transforms.Resample(SAMPLE_RATE, 22050)
+        result = resampler(result)
+        return result.unsqueeze(0).to(device)
+
 
     def forward(self, x, attack_choice=1, ratio=10, src_path = None):
         attack_functions = {
@@ -726,7 +744,8 @@ class distortion(nn.Module):
             28: lambda x: self.AutoVC(x, src_path),
             29: lambda x: self.YourTTS(x),
             30: lambda x: self.DiffVC(x, src_path),
-            31: lambda x: self.VQMIVC(x, src_path)
+            31: lambda x: self.VQMIVC(x, src_path),
+            32: lambda x: self.VALLEX(x)
         }
 
         x = x.clamp(-1, 1)
