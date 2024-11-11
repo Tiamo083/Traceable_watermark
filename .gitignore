@@ -12,6 +12,7 @@ hifigan/model/VCTK_V1/generator_v1
 nohup.out
 *.wav
 **/__pycache__/
+distortions/__pycache__/
 deepFake/DiffVC/checkpts/spk_encoder/pretrained.pt
 deepFake/DiffVC/checkpts/vc/vc_libritts_wodyn.pt
 deepFake/DiffVC/checkpts/vocoder/generator
