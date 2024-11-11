@@ -1,6 +1,6 @@
 dataset: "librispeech"
 
-attack_type: 28
+attack_type: 32
 
 path:
   raw_path: "./dataset/LibriSpeech_wav"
