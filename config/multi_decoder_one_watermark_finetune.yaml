@@ -11,7 +11,7 @@ path:
   raw_path: "./dataset/LibriSpeech_wav"
   raw_path_test: "./experiments/cloned_speechs"
   wm_speech: "./results/wm_speech"
-  ckpt: "./results/ckpt/half_vunlerable_watermark_multi_decoder_one_wm"
+  ckpt: "./results/ckpt/half_vunlerable_watermark_multi_decoder_one_wm_diffvc"
   finetune_ckpt: "./results/ckpt/multi_decoder_one_watermark_finetune"
   log_path: "results/log/"
 

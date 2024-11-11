@@ -1,6 +1,6 @@
 dataset: "librispeech"
 
-attack_type: 7
+attack_type: 30
 micro: 2
 sigma: 3
 

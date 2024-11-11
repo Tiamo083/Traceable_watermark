@@ -1,7 +1,7 @@
 /dataset/LibriSpeech/*
 /dataset/LibriSpeech_wav/*
 /dataset/*
-/autovc/*
+autovc/*
 /demo/*
 hifigan/model/VCTK_V1/generator_v1
 /results/*
@@ -12,12 +12,13 @@ hifigan/model/VCTK_V1/generator_v1
 nohup.out
 *.wav
 **/__pycache__/
-deepFake/*
+*/__pycache__/
 deepFake/DiffVC/checkpts/spk_encoder/pretrained.pt
 deepFake/DiffVC/checkpts/vc/vc_libritts_wodyn.pt
 deepFake/DiffVC/checkpts/vocoder/generator
 deepFake/VQMIVC/vocoder/checkpoint-3000000steps.pkl
-./deepFake/VQMIVC/vqmivc_model/checkpoints/useCSMIFalse_useCPMIFalse_usePSMIFalse_useAmpTrue/VQMIVC-noMI-model.ckpt-500.pt
-./deepFake/VQMIVC/vqmivc_model/checkpoints/useCSMITrue_useCPMITrue_usePSMITrue_useAmpTrue/VQMIVC-model.ckpt-500.pt
-./deepFake/VQMIVC/vqmivc_model/vocoder/checkpoint-3000000steps.pkl
-./deepFake/DiffVC/checkpts/spk_encoder/pretrained.pt
+deepFake/VQMIVC/vqmivc_model/checkpoints/useCSMIFalse_useCPMIFalse_usePSMIFalse_useAmpTrue/VQMIVC-noMI-model.ckpt-500.pt
+deepFake/VQMIVC/vqmivc_model/checkpoints/useCSMITrue_useCPMITrue_usePSMITrue_useAmpTrue/VQMIVC-model.ckpt-500.pt
+deepFake/VQMIVC/vqmivc_model/vocoder/checkpoint-3000000steps.pkl
+deepFake/DiffVC/checkpts/spk_encoder/pretrained.pt
+deepFake/autovc/pretrained_models/*
