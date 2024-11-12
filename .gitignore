@@ -24,3 +24,7 @@ deepFake/DiffVC/checkpts/spk_encoder/pretrained.pt
 deepFake/autovc/pretrained_models/*
 deepFake/VALL-E-X/checkpoints/vallex-checkpoint.pt
 deepFake/VALL-E-X/whisper/medium.pt
+deepFake/FreeVC/checkpoints/freevc.pth
+deepFake/FreeVC/outputs
+deepFake/FreeVC/speaker_encoder/ckpt/pretrained_bak_5805000.pt
+deepFake/FreeVC/wavlm/WavLM-Large.pt

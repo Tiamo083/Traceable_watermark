@@ -40,3 +40,6 @@
 
 11 月 11 日 by yuFeng
 - 添加了 [VALL-E-X](https://github.com/Plachtaa/VALL-E-X)，已将模型参数添加到 gitignore，理论上第一次运行时会自己下载，不过这个好像有点慢，不知道是不是现在 GPU 太多人用的问题qwq
+
+11 月 12 日 by yuFeng
+- 添加了 [FreeVC](https://github.com/OlaWod/FreeVC)，未上传的模型参数同样参见 gitignore

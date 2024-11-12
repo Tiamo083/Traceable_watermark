@@ -708,6 +708,50 @@ class distortion(nn.Module):
         resampler = torchaudio.transforms.Resample(SAMPLE_RATE, 22050)
         result = resampler(result)
         return result.unsqueeze(0).to(device)
+    
+    # FreeVC: 16000Hz
+    def FreeVC(self, tgt_audio, src_path):
+        import sys
+        sys.path.append('deepFake/FreeVC')
+        import freevcutils
+        from models import SynthesizerTrn
+        from speaker_encoder.voice_encoder import SpeakerEncoder
+
+        hpfile = "deepFake/FreeVC/configs/freevc.json"
+        ptfile = "deepFake/FreeVC/checkpoints/freevc.pth"
+
+        hps = freevcutils.get_hparams_from_file(hpfile)
+
+        net_g = SynthesizerTrn(
+            hps.data.filter_length // 2 + 1,
+            hps.train.segment_size // hps.data.hop_length,
+            **hps.model).to(device)
+        _ = net_g.eval()
+        _ = freevcutils.load_checkpoint(ptfile, net_g, None, True)
+
+        cmodel = freevcutils.get_cmodel(0)
+
+        if hps.model.use_spk:
+            smodel = SpeakerEncoder('deepFake/FreeVC/speaker_encoder/ckpt/pretrained_bak_5805000.pt')
+
+        wav_tgt = tgt_audio.squeeze(0).cpu()
+        resampler = ta.transforms.Resample(orig_freq=22050, new_freq=hps.data.sampling_rate)
+        wav_tgt = resampler(wav_tgt)
+        wav_tgt = wav_tgt.squeeze(0).numpy()
+        wav_tgt, _ = librosa.effects.trim(wav_tgt, top_db=20)
+        g_tgt = smodel.embed_utterance(wav_tgt)
+        g_tgt = torch.from_numpy(g_tgt).unsqueeze(0).to(device)
+
+        wav_src, _ = librosa.load(src_path, sr=hps.data.sampling_rate)
+        wav_src = torch.from_numpy(wav_src).unsqueeze(0).to(device)
+        c = freevcutils.get_content(cmodel, wav_src)
+
+        audio = net_g.infer(c, g=g_tgt)
+        audio = audio.squeeze(0).cpu()
+        resampler = ta.transforms.Resample(hps.data.sampling_rate, 22050)
+        audio = resampler(audio)
+        return audio.unsqueeze(0).to(device)
+
 
 
     def forward(self, x, attack_choice=1, ratio=10, src_path = None):
@@ -745,7 +789,8 @@ class distortion(nn.Module):
             29: lambda x: self.YourTTS(x),
             30: lambda x: self.DiffVC(x, src_path),
             31: lambda x: self.VQMIVC(x, src_path),
-            32: lambda x: self.VALLEX(x)
+            32: lambda x: self.VALLEX(x),
+            33: lambda x: self.FreeVC(x, src_path)
         }
 
         x = x.clamp(-1, 1)
