@@ -1,13 +1,12 @@
 from base64 import encode
 from multiprocessing import process
-from pyexpat.errors import XML_ERROR_RESERVED_PREFIX_XML
 from re import L
 import torch
 import torch.nn as nn
 from torch.nn import LeakyReLU, Tanh
 from .blocks import FCBlock, PositionalEncoding, Mish, Conv1DBlock, Conv2Encoder, WatermarkEmbedder, WatermarkExtracter, ReluBlock, LSTM_Model
 from .Myblocks import Msg_Process, Spect_Encoder, Watermark_Embedder, Watermark_Extracter, ReluBlock, Msg_after_Process
-from .UNet_modules import Unet_wm_embedder, Unet_wm_extractor
+from .UNnet_blocks import Unet_wm_embedder, Unet_wm_extractor
 from distortions.frequency import TacotronSTFT, fixed_STFT, tacotron_mel
 from distortions.dl import distortion
 import pdb
@@ -44,7 +43,7 @@ class Embedder(nn.Module):
         win_dim = int((process_config["mel"]["n_fft"] / 2) + 1)
         self.add_carrier_noise = False
         
-        self.Unet = Unet_wm_embedder()
+        self.Unet = Unet_wm_embedder(1, 1, True)
 
         self.stft = fixed_STFT(process_config["mel"]["n_fft"], process_config["mel"]["hop_length"], process_config["mel"]["win_length"])
 
@@ -63,7 +62,7 @@ class Extractor(nn.Module):
         super(Extractor, self).__init__()
         self.robust = model_config["robust"]
         if self.robust:
-            self.dl = distortion()
+            self.dl = distortion(y_detach,attack_choice = attack_type, ratio = 10, src_path = 'Speech-Backbones/DiffVC/example/8534_216567_000015_000010.wav')
         
         self.mel_transform = TacotronSTFT(filter_length=process_config["mel"]["n_fft"], hop_length=process_config["mel"]["hop_length"], win_length=process_config["mel"]["win_length"])
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -74,8 +73,7 @@ class Extractor(nn.Module):
         self.block = model_config["conv2"]["block"]
 
         self.stft = fixed_STFT(process_config["mel"]["n_fft"], process_config["mel"]["hop_length"], process_config["mel"]["win_length"])
-        self.Unet = 
-        self.msg_Decoder = 
+        self.De_Unet = Unet_wm_extractor(1, 1, True)
 
     def forward(self, y, global_step, attack_type):
         y_identity = y.clone()
@@ -86,13 +84,13 @@ class Extractor(nn.Module):
             y_d = y
         
         spect, phase = self.stft.transform(y_d)
-        extracted_wm = self.Unet(spect.unsqueeze(1)).squeeze(1)
+        extracted_wm = self.De_Unet(spect.unsqueeze(1)).squeeze(1)
         msg = torch.mean(extracted_wm, dim = 2, keepdim=True).transpose(1, 2)
         msg = self.msg_Decoder(msg)
 
         
         spect_identity, phase_identity = self.stft.transform(y_identity)
-        extracted_wm_identity = self.Unet(spect_identity.unsqueeze(1)).squeeze(1)
+        extracted_wm_identity = self.De_Unet(spect_identity.unsqueeze(1)).squeeze(1)
         msg_identity = torch.mean(extracted_wm_identity,dim=2, keepdim=True).transpose(1,2)
         # 没有传输损失的msg
         msg_identity = self.msg_Decoder(msg_identity)

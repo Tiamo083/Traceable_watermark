@@ -59,7 +59,7 @@ C.load_state_dict(new_state_dict)
 
 def get_emb(wav_spectrum):
     len_crop = 128
-    left = np.random.randint(0, wav_spectrum.shape[0]-len_crop)
+    left = np.random.randint(0, max(wav_spectrum.shape[0]-len_crop, 1))
     melsp = torch.from_numpy(wav_spectrum[np.newaxis, left:left+len_crop, :]).cuda()
     emb = C(melsp)
     return emb.detach().squeeze().cpu().numpy()

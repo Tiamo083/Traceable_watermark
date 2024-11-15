@@ -434,23 +434,18 @@ class distortion(nn.Module):
 
     def AutoVC(self, tgt_audio, src_path):
         import sys
+        import torchaudio as ta
         sys.path.append('deepFake/autovc')
         from converision import get_vc_spect
         from make_metadata import get_emb
         from make_spect import get_spect, get_spect_from_wav
 
-        resampler = torchaudio.transforms.Resample(orig_freq=22050, new_freq=16000)
-
-        src_audio, _ = sf.read(src_path)
-        src_spectrum = get_spect_from_wav(src_audio)
+        src_spectrum = get_spect(src_path)
         src_embedding = get_emb(src_spectrum)
-    
-        tgt_audio = resampler(tgt_audio.squeeze(0).cpu())
-        if tgt_audio.shape[0] == 1:
-            tgt_audio = tgt_audio.squeeze(0).numpy()
-        else:
-            raise ValueError("The input audio has more than one channel")
 
+        tgt_audio = tgt_audio.cpu().squeeze(0).numpy()
+        if tgt_audio.shape[0] == 1:
+            tgt_audio = tgt_audio.squeeze(0)
         tgt_spectrum = get_spect_from_wav(tgt_audio)
         tgt_embdedding = get_emb(tgt_spectrum)
 

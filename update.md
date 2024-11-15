@@ -40,3 +40,6 @@
 
 11 月 11 日 by yuFeng
 - 添加了 [VALL-E-X](https://github.com/Plachtaa/VALL-E-X)，已将模型参数添加到 gitignore，理论上第一次运行时会自己下载，不过这个好像有点慢，不知道是不是现在 GPU 太多人用的问题qwq
+
+11 月 11 日 by lingxiaoyu
+- 修改了My_model/modules.py Decoder dl中的内容。将distrotion的作用方式进行了修改，这样就可以不用考虑dl过程中如何保持音频梯度仍然可回传的问题，可以让音频在YourTTS、AutoVC等情况下正常运行。

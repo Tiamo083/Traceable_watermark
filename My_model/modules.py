@@ -12,6 +12,7 @@ import pdb
 import hifigan
 import json
 import torchaudio
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def save_spectrum(spect, phase, flag='linear'):
     import numpy as np
@@ -236,8 +237,8 @@ class Decoder(nn.Module):
             self.dl = distortion(process_config)
         
         self.mel_transform = TacotronSTFT(filter_length=process_config["mel"]["n_fft"], hop_length=process_config["mel"]["hop_length"], win_length=process_config["mel"]["win_length"])
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.vocoder = get_vocoder(device)
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.vocoder = get_vocoder(self.device)
         self.vocoder_step = model_config["structure"]["vocoder_step"]
 
         win_dim = int((process_config["mel"]["n_fft"] / 2) + 1)
@@ -254,10 +255,28 @@ class Decoder(nn.Module):
         # else:
         #     y_d = y
         
-        if self.robust:
-            y_d = self.dl(y, attack_choice = attack_type, ratio = 10, src_path = 'Speech-Backbones/DiffVC/example/8534_216567_000015_000010.wav')
-        else:
-            y_d = y
+        with torch.no_grad():
+            y_detach = y.detach()
+            if self.robust:
+                y_detach_dl = self.dl(y_detach,attack_choice = attack_type, ratio = 10, src_path = 'Speech-Backbones/DiffVC/example/8534_216567_000015_000010.wav')
+                n_y_detach_dl = y_detach_dl.shape[2]
+                n_y = y.shape[2]
+
+                if n_y_detach_dl < n_y:
+                    padding = torch.full((1, 1, n_y - n_y_detach_dl), fill_value = 0.000001, dtype=y_detach_dl.dtype).to(device)
+                    y_detach_dl_result = torch.cat((y_detach_dl, padding), dim = 2)
+                else:
+                    y_detach_dl_result = y_detach_dl[:, :, :n_y]
+                
+                y_gap = y_detach_dl_result - y_detach
+            else:
+                y_gap = torch.zeros_like(y, device=self.device, requires_grad=True).to(device)
+        
+        y_d = y + y_gap
+        # if self.robust:
+        #     y_d = self.dl(y, attack_choice = attack_type, ratio = 10, src_path = 'Speech-Backbones/DiffVC/example/8534_216567_000015_000010.wav')
+        # else:
+        #     y_d = y
         
         # 做傅里叶变换
         spect, phase = self.stft.transform(y_d)

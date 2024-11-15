@@ -34,7 +34,9 @@ import socket
 import gc
 
 
-from My_model.modules import Encoder, Decoder, Discriminator
+# from My_model.modules import Encoder, Decoder, Discriminator
+from My_model.UNet_modules import Embedder, Extractor
+from My_model.modules import Discriminator
 from dataset.data import wav_dataset as used_dataset
 
 
@@ -85,10 +87,13 @@ def main(args, configs):
     # msg_length:16bit, the last 6 bits are used to clarify robust watermark and fragile watermark
     msg_length = train_config["watermark"]["length"]
 
-    encoder = Encoder(process_config, model_config, msg_length, win_dim, embedding_dim, nlayers_encoder=nlayers_encoder, attention_heads=attention_heads_encoder).to(device)
-    fragile_decoder = Decoder(process_config, model_config, msg_length, win_dim, embedding_dim, nlayers_decoder=nlayers_decoder, attention_heads=attention_heads_decoder).to(device)
-    robust_decoder = Decoder(process_config, model_config, msg_length, win_dim, embedding_dim, nlayers_decoder=nlayers_decoder, attention_heads=attention_heads_decoder).to(device)
-
+    # encoder = Encoder(process_config, model_config, msg_length, win_dim, embedding_dim, nlayers_encoder=nlayers_encoder, attention_heads=attention_heads_encoder).to(device)
+    # fragile_decoder = Decoder(process_config, model_config, msg_length, win_dim, embedding_dim, nlayers_decoder=nlayers_decoder, attention_heads=attention_heads_decoder).to(device)
+    # robust_decoder = Decoder(process_config, model_config, msg_length, win_dim, embedding_dim, nlayers_decoder=nlayers_decoder, attention_heads=attention_heads_decoder).to(device)
+    pdb.set_trace()
+    encoder = Embedder(process_config, msg_length, win_dim).to(device)
+    fragile_decoder = Extractor(process_config, model_config, msg_length, win_dim).to(device)
+    robust_decoder = Extractor(process_config, model_config, msg_length, win_dim).to(device)
     # adv
     if train_config["adv"]:
         discriminator = Discriminator(process_config).to(device)
@@ -166,6 +171,7 @@ def main(args, configs):
             
             wav_matrix = sample["matrix"].to(device)
             msg = msg.to(device)
+            pdb.set_trace()
             encoded, carrier_wateramrked = encoder(wav_matrix, msg, global_step)
             robust_decoded = robust_decoder(encoded, global_step, train_config["attack_type"])
             fragile_decoded = fragile_decoder(encoded, global_step, train_config["attack_type"])
@@ -241,15 +247,15 @@ def main(args, configs):
                     snr, norm2, sample["patch_num"].item(), sample["pad_num"].item(),\
                     wav_matrix.shape[2], d_loss_on_encoded, d_loss_on_cover))
                   
-                wandb.log({'wav_loss': losses[0]})
-                wandb.log({'robust_msg_loss': losses[1]})
-                wandb.log({'fragile_msg_loss': losses[3]})
-                wandb.log({'snr': snr})
-                wandb.log({'d_loss_on_encoded': d_loss_on_encoded})
-                wandb.log({'d_loss_on_cover': d_loss_on_cover})
+                # wandb.log({'wav_loss': losses[0]})
+                # wandb.log({'robust_msg_loss': losses[1]})
+                # wandb.log({'fragile_msg_loss': losses[3]})
+                # wandb.log({'snr': snr})
+                # wandb.log({'d_loss_on_encoded': d_loss_on_encoded})
+                # wandb.log({'d_loss_on_cover': d_loss_on_cover})
 
-                wandb.log({'train_data_attack_robust_msg_loss': losses[2]})
-                wandb.log({'train_data_attack_fragile_msg_loss': losses[4]})
+                # wandb.log({'train_data_attack_robust_msg_loss': losses[2]})
+                # wandb.log({'train_data_attack_fragile_msg_loss': losses[4]})
                 
         # if ep % save_circle == 0 or ep == 1 or ep == 2:
         if ep % save_circle == 0:
@@ -438,18 +444,18 @@ def main(args, configs):
             avg_snr /= count
             
 
-            wandb.log({"attack_watermark_r_decoder_acc": attack_wm_avg_acc[0]})
-            wandb.log({"attack_watermark_f_decoder_acc": attack_wm_avg_acc[1]})
-            wandb.log({"watermark_r_decoder_acc": wm_avg_acc[0]})
-            wandb.log({'watermark_f_decoder_acc': wm_avg_acc[1]})
-            wandb.log({'valid_unwatermark_msg_loss': unwm_avg_acc})
-            wandb.log({'attack_robust_msg_loss': wm_avg_r_msg_loss})
-            wandb.log({'attack_fragile_msg_loss': wm_avg_f_msg_loss})
-            wandb.log({'no_attack_robust_msg_loss': no_attack_r_msg_loss})
-            wandb.log({'no_attack_fragile_msg_loss': no_attack_f_msg_loss})
+            # wandb.log({"attack_watermark_r_decoder_acc": attack_wm_avg_acc[0]})
+            # wandb.log({"attack_watermark_f_decoder_acc": attack_wm_avg_acc[1]})
+            # wandb.log({"watermark_r_decoder_acc": wm_avg_acc[0]})
+            # wandb.log({'watermark_f_decoder_acc': wm_avg_acc[1]})
+            # wandb.log({'valid_unwatermark_msg_loss': unwm_avg_acc})
+            # wandb.log({'attack_robust_msg_loss': wm_avg_r_msg_loss})
+            # wandb.log({'attack_fragile_msg_loss': wm_avg_f_msg_loss})
+            # wandb.log({'no_attack_robust_msg_loss': no_attack_r_msg_loss})
+            # wandb.log({'no_attack_fragile_msg_loss': no_attack_f_msg_loss})
 
-            wandb.log({'no_wm_audio_robust_msg_loss': unwm_avg_r_msg_loss})
-            wandb.log({'no_wm_audio_fragile_msg_loss': unwm_avg_f_msg_loss})
+            # wandb.log({'no_wm_audio_robust_msg_loss': unwm_avg_r_msg_loss})
+            # wandb.log({'no_wm_audio_fragile_msg_loss': unwm_avg_f_msg_loss})
             
             
             print('#e' * 60)
@@ -492,14 +498,14 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     
-    wandb.init(config=args,
-               project=args.project_name,
-               entity=args.team_name,
-               notes=socket.gethostname(),
-               name=args.experiment_name+"_"+str(args.seed),
-               group=args.scenario_name,
-               job_type="training",
-               reinit=True)
+    # wandb.init(config=args,
+    #            project=args.project_name,
+    #            entity=args.team_name,
+    #            notes=socket.gethostname(),
+    #            name=args.experiment_name+"_"+str(args.seed),
+    #            group=args.scenario_name,
+    #            job_type="training",
+    #            reinit=True)
     
 
     # Read Config
