@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from model.loss import Loss_identity
 from torch.nn.functional import mse_loss
 import random
-import wandb
+# import wandb
 import socket
 
 
@@ -109,11 +109,11 @@ def main(args, configs):
                     print("watermark_r_decoder_acc: ", wm_avg_acc[0] / count)
                     print("watermark_f_decoder_acc: ", wm_avg_acc[1] / count)
                     print("valid_unwatermark_msg_loss: ", unwm_avg_acc[0] / count)
-                    wandb.log({"attack_watermark_r_decoder_acc": attack_wm_avg_acc[0] / count})
-                    wandb.log({"attack_watermark_f_decoder_acc": attack_wm_avg_acc[1] / count})
-                    wandb.log({"watermark_r_decoder_acc": wm_avg_acc[0] / count})
-                    wandb.log({'watermark_f_decoder_acc': wm_avg_acc[1] / count})
-                    wandb.log({'valid_unwatermark_msg_loss': unwm_avg_acc[0] / count})
+                    # wandb.log({"attack_watermark_r_decoder_acc": attack_wm_avg_acc[0] / count})
+                    # wandb.log({"attack_watermark_f_decoder_acc": attack_wm_avg_acc[1] / count})
+                    # wandb.log({"watermark_r_decoder_acc": wm_avg_acc[0] / count})
+                    # wandb.log({'watermark_f_decoder_acc': wm_avg_acc[1] / count})
+                    # wandb.log({'valid_unwatermark_msg_loss': unwm_avg_acc[0] / count})
             count += 1
             global_step += 1
             # ---------------------- build watermark
@@ -184,14 +184,14 @@ def main(args, configs):
         avg_snr /= count
         
 
-        wandb.log({"attack_watermark_r_decoder_acc": attack_wm_avg_acc[0]})
-        wandb.log({"attack_watermark_f_decoder_acc": attack_wm_avg_acc[1]})
-        wandb.log({"watermark_r_decoder_acc": wm_avg_acc[0]})
-        wandb.log({'watermark_f_decoder_acc': wm_avg_acc[1]})
-        wandb.log({'valid_unwatermark_msg_loss': unwm_avg_acc[0]})
-        wandb.log({'attack_robust_msg_loss': wm_avg_r_msg_loss})
-        wandb.log({'attack_fragile_msg_loss': wm_avg_f_msg_loss})
-        wandb.log({'no_attack_real_msg_loss': no_attack_msg_loss})
+        # wandb.log({"attack_watermark_r_decoder_acc": attack_wm_avg_acc[0]})
+        # wandb.log({"attack_watermark_f_decoder_acc": attack_wm_avg_acc[1]})
+        # wandb.log({"watermark_r_decoder_acc": wm_avg_acc[0]})
+        # wandb.log({'watermark_f_decoder_acc': wm_avg_acc[1]})
+        # wandb.log({'valid_unwatermark_msg_loss': unwm_avg_acc[0]})
+        # wandb.log({'attack_robust_msg_loss': wm_avg_r_msg_loss})
+        # wandb.log({'attack_fragile_msg_loss': wm_avg_f_msg_loss})
+        # wandb.log({'no_attack_real_msg_loss': no_attack_msg_loss})
         
         
         print('#e' * 60)
@@ -234,14 +234,14 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     
-    wandb.init(config=args,
-               project=args.project_name,
-               entity=args.team_name,
-               notes=socket.gethostname(),
-               name=args.experiment_name+"_"+str(args.seed),
-               group=args.scenario_name,
-               job_type="training",
-               reinit=True)
+    # wandb.init(config=args,
+    #            project=args.project_name,
+    #            entity=args.team_name,
+    #            notes=socket.gethostname(),
+    #            name=args.experiment_name+"_"+str(args.seed),
+    #            group=args.scenario_name,
+    #            job_type="training",
+    #            reinit=True)
     
 
     # Read Config

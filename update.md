@@ -43,3 +43,6 @@
 
 11 月 11 日 by lingxiaoyu
 - 修改了My_model/modules.py Decoder dl中的内容。将distrotion的作用方式进行了修改，这样就可以不用考虑dl过程中如何保持音频梯度仍然可回传的问题，可以让音频在YourTTS、AutoVC等情况下正常运行。
+
+11 月 12 日 by yuFeng
+- 添加了 [FreeVC](https://github.com/OlaWod/FreeVC)，未上传的模型参数同样参见 gitignore
