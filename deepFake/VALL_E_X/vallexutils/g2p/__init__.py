@@ -1,6 +1,6 @@
 """ from https://github.com/keithito/tacotron """
-import utils.g2p.cleaners
-from utils.g2p.symbols import symbols
+import vallexutils.g2p.cleaners
+from vallexutils.g2p.symbols import symbols
 from tokenizers import Tokenizer
 
 # Mappings from symbol to numeric ID and vice versa:
@@ -65,7 +65,7 @@ def sequence_to_text(sequence):
 
 def _clean_text(text, cleaner_names):
   for name in cleaner_names:
-    cleaner = getattr(utils.g2p.cleaners, name)
+    cleaner = getattr(vallexutils.g2p.cleaners, name)
     if not cleaner:
       raise Exception('Unknown cleaner: %s' % name)
     text, langs = cleaner(text)
