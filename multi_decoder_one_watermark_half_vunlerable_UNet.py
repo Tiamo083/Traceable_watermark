@@ -171,7 +171,6 @@ def main(args, configs):
             
             wav_matrix = sample["matrix"].to(device)
             msg = msg.to(device)
-            pdb.set_trace()
             encoded, carrier_wateramrked = encoder(wav_matrix, msg, global_step)
             robust_decoded = robust_decoder(encoded, global_step, train_config["attack_type"])
             fragile_decoded = fragile_decoder(encoded, global_step, train_config["attack_type"])

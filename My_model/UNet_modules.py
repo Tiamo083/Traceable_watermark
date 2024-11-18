@@ -43,16 +43,18 @@ class Embedder(nn.Module):
         win_dim = int((process_config["mel"]["n_fft"] / 2) + 1)
         self.add_carrier_noise = False
         
-        self.Unet = Unet_wm_embedder(1, 1, True)
+        self.Unet = Unet_wm_embedder(1, 1, msg_length)
 
         self.stft = fixed_STFT(process_config["mel"]["n_fft"], process_config["mel"]["hop_length"], process_config["mel"]["win_length"])
 
         
 
     def forward(self, x, msg, global_step):
+        import pdb
+        pdb.set_trace()
         num_samples = x.shape[2]
         spect, phase = self.stft.transform(x)
-        watermarked_spect = self.Unet(spect.unsqueeze(1), msg)
+        watermarked_spect = self.Unet(spect.unsqueeze(1), msg.unsqueeze(1))
         self.stft.num_samples = num_samples
         y = self.stft.inverse(watermarked_spect.squeeze(1), phase.squeeze(1))
         return y, watermarked_spect
@@ -62,7 +64,7 @@ class Extractor(nn.Module):
         super(Extractor, self).__init__()
         self.robust = model_config["robust"]
         if self.robust:
-            self.dl = distortion(y_detach,attack_choice = attack_type, ratio = 10, src_path = 'Speech-Backbones/DiffVC/example/8534_216567_000015_000010.wav')
+            self.dl = distortion(process_config)
         
         self.mel_transform = TacotronSTFT(filter_length=process_config["mel"]["n_fft"], hop_length=process_config["mel"]["hop_length"], win_length=process_config["mel"]["win_length"])
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -73,7 +75,7 @@ class Extractor(nn.Module):
         self.block = model_config["conv2"]["block"]
 
         self.stft = fixed_STFT(process_config["mel"]["n_fft"], process_config["mel"]["hop_length"], process_config["mel"]["win_length"])
-        self.De_Unet = Unet_wm_extractor(1, 1, True)
+        self.De_Unet = Unet_wm_extractor(1, 1)
 
     def forward(self, y, global_step, attack_type):
         y_identity = y.clone()

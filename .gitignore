@@ -22,8 +22,8 @@ deepFake/VQMIVC/vqmivc_model/checkpoints/useCSMITrue_useCPMITrue_usePSMITrue_use
 deepFake/VQMIVC/vqmivc_model/vocoder/checkpoint-3000000steps.pkl
 deepFake/DiffVC/checkpts/spk_encoder/pretrained.pt
 deepFake/autovc/pretrained_models/*
-deepFake/VALL-E-X/checkpoints/vallex-checkpoint.pt
-deepFake/VALL-E-X/whisper/medium.pt
+deepFake/VALL_E_X/checkpoints/vallex-checkpoint.pt
+deepFake/VALL_E_X/whisper/medium.pt
 deepFake/FreeVC/checkpoints/freevc.pth
 deepFake/FreeVC/outputs
 deepFake/FreeVC/speaker_encoder/ckpt/pretrained_bak_5805000.pt

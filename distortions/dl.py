@@ -688,9 +688,9 @@ class distortion(nn.Module):
     
     def VALLEX(self, tgt_audio):
         import sys
-        sys.path.append('deepFake/VALL-E-X')
-        from utils.prompt_making import make_prompt_by_audio
-        from utils.generation import SAMPLE_RATE, generate_audio, preload_models
+        sys.path.append('deepFake/VALL_E_X')
+        from vallexutils.prompt_making import make_prompt_by_audio
+        from vallexutils.generation import SAMPLE_RATE, generate_audio, preload_models
         from scipy.io.wavfile import write as write_wav
 
         make_prompt_by_audio(name="vallex", wav_pr=tgt_audio.squeeze(0).cpu(), sr=22050)

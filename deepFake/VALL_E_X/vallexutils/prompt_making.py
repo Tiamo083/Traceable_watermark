@@ -12,11 +12,11 @@ from data.tokenizer import (
     tokenize_audio,
 )
 from data.collation import get_text_token_collater
-from utils.g2p import PhonemeBpeTokenizer
+from vallexutils.g2p import PhonemeBpeTokenizer
 
 from macros import *
 
-text_tokenizer = PhonemeBpeTokenizer(tokenizer_path="./deepFake/VALL-E-X/utils/g2p/bpe_69.json")
+text_tokenizer = PhonemeBpeTokenizer(tokenizer_path="./deepFake/VALL_E_X/vallexutils/g2p/bpe_69.json")
 text_collater = get_text_token_collater()
 
 device = torch.device("cpu")
@@ -26,7 +26,7 @@ if torch.backends.mps.is_available():
     device = torch.device("mps")
 codec = AudioTokenizer(device)
 
-if not os.path.exists("./deepFake/VALL-E-X/whisper/"): os.mkdir("./deepFake/VALL-E-X/whisper/")
+if not os.path.exists("./deepFake/VALL_E_X/whisper/"): os.mkdir("./deepFake/VALL_E_X/whisper/")
 whisper_model = None
 
 @torch.no_grad()
@@ -79,7 +79,7 @@ def make_prompt(name, audio_prompt_path, transcript=None):
     message = f"Detected language: {lang_pr}\n Detected text {text_pr}\n"
 
     # save as npz file
-    save_path = os.path.join("./deepFake/VALL-E-X/customs/", f"{name}.npz")
+    save_path = os.path.join("./deepFake/VALL_E_X/customs/", f"{name}.npz")
     np.savez(save_path, audio_tokens=audio_tokens, text_tokens=text_tokens, lang_code=lang2code[lang_pr])
     logging.info(f"Successful. Prompt saved to {save_path}")
 
@@ -107,7 +107,7 @@ def make_prompt_by_audio(name, wav_pr, sr, transcript=None):
     message = f"Detected language: {lang_pr}\n Detected text {text_pr}\n"
 
     # save as npz file
-    save_path = os.path.join("./deepFake/VALL-E-X/customs/", f"{name}.npz")
+    save_path = os.path.join("./deepFake/VALL_E_X/customs/", f"{name}.npz")
     np.savez(save_path, audio_tokens=audio_tokens, text_tokens=text_tokens, lang_code=lang2code[lang_pr])
     logging.info(f"Successful. Prompt saved to {save_path}")
 
@@ -126,13 +126,13 @@ def make_transcript(name, wav, sr, transcript=None):
         logging.info("Transcript not given, using Whisper...")
         global whisper_model
         if whisper_model is None:
-            whisper_model = whisper.load_model("medium", download_root=os.path.join(os.getcwd(), "deepFake/VALL-E-X/whisper"))
+            whisper_model = whisper.load_model("medium", download_root=os.path.join(os.getcwd(), "deepFake/VALL_E_X/whisper"))
         whisper_model.to(device)
-        torchaudio.save(f"./deepFake/VALL-E-X/prompts/{name}.wav", wav, sr)
-        lang, text = transcribe_one(whisper_model, f"./deepFake/VALL-E-X/prompts/{name}.wav")
+        torchaudio.save(f"./deepFake/VALL_E_X/prompts/{name}.wav", wav, sr)
+        lang, text = transcribe_one(whisper_model, f"./deepFake/VALL_E_X/prompts/{name}.wav")
         lang_token = lang2token[lang]
         text = lang_token + text + lang_token
-        os.remove(f"./deepFake/VALL-E-X/prompts/{name}.wav")
+        os.remove(f"./deepFake/VALL_E_X/prompts/{name}.wav")
         whisper_model.cpu()
     else:
         text = transcript

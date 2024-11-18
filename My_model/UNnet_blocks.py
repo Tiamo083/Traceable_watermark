@@ -38,12 +38,9 @@ class DownSample(nn.Module):
         return self.maxpool_conv(x)
 
 class UpSample(nn.Module):
-    def __init__(self, in_channels, out_channels, bilinear=True):
+    def __init__(self, in_channels, out_channels):
         super(UpSample, self).__init__()
-        if bilinear:
-            self.up = nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True)
-        else:
-            self.up = nn.ConvTranspose2d(in_channels, in_channels // 2, kernel_size=2, stride=2)
+        self.up = nn.ConvTranspose2d(in_channels, in_channels // 2, kernel_size=2, stride=2)
         
         self.conv = DoubleConv(in_channels, out_channels)
     
@@ -56,40 +53,49 @@ class UpSample(nn.Module):
         x1 = F.pad(x1, [diffX // 2, diffX - diffX // 2,
                         diffY // 2, diffY - diffY // 2])
         
+        msg = msg.unsqueeze(3).repeat(1, 1, 1, x1.shape[3])
         x = torch.cat([x2, x1, msg], dim = 1)
         x = self.conv(x)
         return x
 
 
 class MsgUpSample(nn.Module):
-    def __init__(self, out_channels):
+    def __init__(self, msg_length, out_features):
         super(MsgUpSample, self).__init__()
-        self.MsgUpNet = nn.Sequential(
-            nn.Conv2d(1, out_channels, kernel_size=3, padding = 1),
-            nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(out_channels, out_channels, kernel_size=1, padding=0),
-            nn.BatchNorm2d(out_channels),
-            nn.ReLU(inplace=True)
+        self.MsgUpLinear = torch.nn.Sequential(
+                torch.nn.Linear(in_features=msg_length, out_features=max(44, out_features // 2)),
+                nn.BatchNorm1d(1),
+                nn.ReLU(inplace=True),
+                torch.nn.Linear(in_features=max(44, out_features // 2), out_features=out_features),
+                nn.BatchNorm1d(1),
+                nn.ReLU(inplace=True)
         )
+        self.MsgDiffusion = 
     def forward(self, msg):
-        return self.MsgUpNet(msg)
+        msg = self.MsgUpLinear(msg)
+        # msg shape [1, 1, out_features]
+        msg = self.MsgDiffusion(msg)
+        return msg
 
 
 class MsgDownSample(nn.Module):
-    def __init__(self, in_channels):
+    def __init__(self, msg_length, in_features):
         super(MsgDownSample, self).__init__()
+        self.MsgReversedDiffusion = 
         self.MsgDownNet = nn.Sequential(
-            nn.ConvTranspose2d(in_channels, 1, stride = 1, kernel_size=1, padding=0),
-            nn.BatchNorm2d(1),
+            torch.nn.Linear(in_features=in_features, out_features=in_features // 2),
+            nn.BatchNorm1d(1),
             nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(1, 1, stride=1, kernel_size=3, padding=1),
-            nn.BatchNorm2d(1),
+            torch.nn.Linear(in_features=in_features // 2, out_features=msg_length),
+            nn.BatchNorm1d(1),
             nn.ReLU(inplace=True)
         )
 
     def forward(self, msg):
-        return self.MsgDownNet(msg)
+        msg = self.MsgReversedDiffusion(msg)
+        msg = torch.mean(msg, dim=3, keepdim=True).squeeze(3)
+        msg = self.MsgDownNet(msg)
+        return msg
 
 
 class DDIMModel(nn.Module):
@@ -176,12 +182,21 @@ class OutConv(nn.Module):
         return self.conv(x)
 
 
+class UNet_model(nn.Module):
+    def __init__(self, in_channels, out_channels, hidden_channels=128):
+        super(UNet_model, self).__init__()
+        self.DoubleConvLayer = DoubleConv(in_channels=in_channels, out_channels=out_channels)
+    
+    def forward(self, x):
+        x = self.encoder(x)
+        x = self.decoder(x)
+        
+
 class Unet_wm_embedder(nn.Module):
-    def __init__(self, n_channels, n_classes, bilinear=True):
+    def __init__(self, n_channels, n_classes, msg_length):
         super(Unet_wm_embedder, self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes
-        self.bilinear = bilinear
 
         self.inc = DoubleConv(n_channels, 64)
         self.down_1 = DownSample(64, 128)
@@ -189,25 +204,25 @@ class Unet_wm_embedder(nn.Module):
         self.down_3 = DownSample(256, 512)
         self.down_4 = DownSample(512, 1024)
 
-        self.up_1 = UpSample(1024, 512, bilinear)
-        self.up_2 = UpSample(512, 256, bilinear)
-        self.up_3 = UpSample(256, 128, bilinear)
-        self.up_4 = UpSample(128, 64, bilinear)
+        self.up_1 = UpSample(1024, 512)
+        self.up_2 = UpSample(512, 256)
+        self.up_3 = UpSample(256, 128)
+        self.up_4 = UpSample(128, 64)
 
         self.outc = OutConv(64, n_classes)
 
-        # self.msg_diffusion_layer = MsgDiffusion()
-        self.msg_up_1 = MsgUpSample(512)
-        self.msg_up_2 = MsgUpSample(256)
-        self.msg_up_3 = MsgUpSample(128)
-        self.msg_up_4 = MsgUpSample(64)
+        self.msg_up_1 = MsgUpSample(msg_length, 56)
+        self.msg_up_2 = MsgUpSample(msg_length, 121)
+        self.msg_up_3 = MsgUpSample(msg_length, 250)
+        self.msg_up_4 = MsgUpSample(msg_length, 509)
         
 
     def forward(self, spect, msg):
         # input spect shape:[batch_size(1), 1, 513, x]
         # input_msg shape:[batch_size(1), 1, msg_length]
         # msg shape: [batch_size(1), 1, 513]
-
+        import pdb
+        pdb.set_trace()
         x1 = self.inc(spect)
         x2 = self.down_1(x1)
         x3 = self.down_2(x2)
@@ -219,21 +234,20 @@ class Unet_wm_embedder(nn.Module):
         msg3 = self.msg_up_3(msg)
         msg4 = self.msg_up_4(msg)
 
-        x = self.up_1(x5, x4, msg4)
-        x = self.up_2(x, x3, msg3)
-        x = self.up_3(x, x2, msg2)
-        x = self.up_4(x, x1, msg1)
+        x = self.up_1(x5, x4, msg1)
+        x = self.up_2(x, x3, msg2)
+        x = self.up_3(x, x2, msg3)
+        x = self.up_4(x, x1, msg4)
         encoded_spect = self.outc(x)
 
         return encoded_spect
 
 
 class Unet_wm_extractor(nn.Module):
-    def __init__(self, n_channels, n_classes, bilinear=True):
+    def __init__(self, msg_length, n_channels, n_classes):
         super(Unet_wm_extractor, self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes
-        self.bilinear = bilinear
 
         self.inc = DoubleConv(n_channels, 64)
         self.down_1 = DownSample(64, 128)
@@ -241,14 +255,14 @@ class Unet_wm_extractor(nn.Module):
         self.down_3 = DownSample(256, 512)
         self.down_4 = DownSample(512, 1024)
 
-        self.up_1 = UpSample(1024, 512, bilinear)
-        self.up_2 = UpSample(512, 256, bilinear)
-        self.up_3 = UpSample(256, 128, bilinear)
-        self.up_4 = UpSample(128, 64, bilinear)
+        self.up_1 = UpSample(1024, 512)
+        self.up_2 = UpSample(512, 256)
+        self.up_3 = UpSample(256, 128)
+        self.up_4 = UpSample(128, 64)
 
         self.outc = OutConv(64, n_classes)
 
-        self.msg_down = MsgDownSample(n_classes)
+        self.msg_down = MsgDownSample(msg_length, 513)
         # self.reversed_diffusion = ReversedDiffusion()
 
     def forward(self, spect):
@@ -265,7 +279,6 @@ class Unet_wm_extractor(nn.Module):
         decoded_spect = self.outc(x)
 
         msg = self.msg_down(decoded_spect)
-        # msg = self.reversed_diffusion(msg)
 
         return msg
         
