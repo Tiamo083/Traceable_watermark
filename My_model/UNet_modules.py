@@ -54,7 +54,7 @@ class Embedder(nn.Module):
         pdb.set_trace()
         num_samples = x.shape[2]
         spect, phase = self.stft.transform(x)
-        watermarked_spect = self.Unet(spect.unsqueeze(1), msg.unsqueeze(1))
+        watermarked_spect = self.Unet(spect.unsqueeze(1), msg)
         self.stft.num_samples = num_samples
         y = self.stft.inverse(watermarked_spect.squeeze(1), phase.squeeze(1))
         return y, watermarked_spect
