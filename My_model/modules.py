@@ -247,7 +247,7 @@ class Decoder(nn.Module):
         self.stft = fixed_STFT(process_config["mel"]["n_fft"], process_config["mel"]["hop_length"], process_config["mel"]["win_length"])
         self.msg_Decoder = Msg_after_Process(win_dim, msg_length)
     
-    def forward(self, y, global_step, attack_type):
+    def forward(self, y, source_audio, global_step, attack_type):
         y_identity = y.clone()
         # if global_step > self.vocoder_step:
         #     y_mel = self.mel_transform.mel_spectrogram(y.squeeze(1))
@@ -258,7 +258,7 @@ class Decoder(nn.Module):
         with torch.no_grad():
             y_detach = y.detach()
             if self.robust:
-                y_detach_dl = self.dl(y_detach,attack_choice = attack_type, ratio = 10, src_path = 'Speech-Backbones/DiffVC/example/8534_216567_000015_000010.wav')
+                y_detach_dl = self.dl(y_detach, source_audio, attack_choice = attack_type, ratio = 10, src_path = 'Speech-Backbones/DiffVC/example/8534_216567_000015_000010.wav')
                 n_y_detach_dl = y_detach_dl.shape[2]
                 n_y = y.shape[2]
 

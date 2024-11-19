@@ -83,14 +83,16 @@ def make_prompt(name, audio_prompt_path, transcript=None):
     np.savez(save_path, audio_tokens=audio_tokens, text_tokens=text_tokens, lang_code=lang2code[lang_pr])
     logging.info(f"Successful. Prompt saved to {save_path}")
 
-def make_prompt_by_audio(name, wav_pr, sr, transcript=None):
+def make_prompt_by_audio(name, wav_pr, source_wav, sr, transcript=None):
     global model, text_collater, text_tokenizer, codec
     # check length
     if wav_pr.size(-1) / sr > 15:
         raise ValueError(f"Prompt too long, expect length below 15 seconds, got {wav_pr / sr} seconds.")
     if wav_pr.size(0) == 2:
         wav_pr = wav_pr.mean(0, keepdim=True)
-    text_pr, lang_pr = make_transcript(name, wav_pr, sr, transcript)
+    if source_wav.size(0) == 2:
+        source_wav = source_wav.mean(0, keepdim=True)
+    text_pr, lang_pr = make_transcript(name, source_wav, sr, transcript)
 
     # tokenize audio
     encoded_frames = tokenize_audio(codec, (wav_pr, sr))
