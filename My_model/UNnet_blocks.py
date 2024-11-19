@@ -5,6 +5,8 @@ import numpy as np
 import pdb
 from torch.nn import functional as F
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 class DoubleConv(nn.Module):
     """
     convolution + batch_norm + ReLU
@@ -60,22 +62,70 @@ class UpSample(nn.Module):
 
 
 class MsgUpSample(nn.Module):
-    def __init__(self, msg_length, out_features):
+    def __init__(self, msg_length, out_features, num_time_steps, beta_min=1e-4, beta_max=2e-2):
         super(MsgUpSample, self).__init__()
+        self.msg_length = msg_length
+        self.out_features = out_features
+        self.beta_min = beta_min
+        self.beta_max = beta_max
+        self.num_time_steps = num_time_steps
+
+        self.betas = torch.linspace(beta_min, beta_max, num_time_steps, dtype=torch.float32).to(device)
+        self.alphas = 1.0 - self.betas
+        self.alphas_cumprod = torch.cumprod(self.alphas, dim=0)
+        self.sqrt_alphas_cumprod = torch.sqrt(self.alphas_cumprod)
+        self.one_minus_alphas_cumprod = torch.cumprod(self.betas, dim=0)
+        self.sqrt_one_minus_alphas_cumprod = torch.sqrt(self.one_minus_alphas_cumprod, dim=0)
+
         self.MsgUpLinear = torch.nn.Sequential(
-                torch.nn.Linear(in_features=msg_length, out_features=max(44, out_features // 2)),
+                torch.nn.Linear(in_features=self.msg_length, out_features=max(44, self.out_features // 2)),
                 nn.BatchNorm1d(1),
                 nn.ReLU(inplace=True),
-                torch.nn.Linear(in_features=max(44, out_features // 2), out_features=out_features),
+                torch.nn.Linear(in_features=max(44, self.out_features // 2), out_features=self.out_features),
                 nn.BatchNorm1d(1),
                 nn.ReLU(inplace=True)
         )
-        self.MsgDiffusion = 
-    def forward(self, msg):
-        msg = self.MsgUpLinear(msg)
+        self.MsgDiffusion = DiffusionModel(1, self.num_time_steps, self.beta_min, self.beta_max)
+    
+    def forward(self, msg, num_time_steps):
         # msg shape [1, 1, out_features]
-        msg = self.MsgDiffusion(msg)
-        return msg
+        # msg_diffusion_modules
+        batch_size, input_dim = msg.shape[1], msg.shape[2]
+        total_loss = 0.0
+        for time in range(num_time_steps):
+            t_tensor = torch.full((batch_size,), time, dtype=torch.long, device = device)
+            msg_t = self.MsgDiffusion.q_sample(msg, t_tensor)
+
+            mean, variance = self.MsgDiffusion(msg_t, t_tensor)
+
+            noise = (msg_t - self.sqrt_alphas_cumprod[time] * msg) / self.sqrt_one_minus_alphas_cumprod[time]
+        
+            # Compute the loss (mean squared error for simplicity)
+            loss = ((mean - noise) ** 2).mean() + (variance - self.betas[time]).abs().mean()  # L2 loss for mean, L1 loss for variance
+        
+            total_loss += loss
+
+        return total_loss / num_time_steps
+
+    def inference(self, msg, num_time_steps):
+        msg_t = torch.randn(msg.shape).to(device)
+        with torch.no_grad():
+            for time in range(num_time_steps - 1, -1, -1):
+                beta_t = self.betas[time]
+                alpha_cumprod = np.prod(1 - self.betas[:time + 1])
+
+                if time == num_time_steps - 1:
+                    msg_t_prev = msg_t
+                else:
+                    noise_pred = self.MsgDiffusion(msg_t_prev, time.to(device))
+                    msg_t_prev = (msg_t_prev - torch.sqrt(1 - alpha_cumprod[time]) * noise_pred) / torch.sqrt(alpha_cumprod[time - 1])
+                
+                msg_t = msg_t_prev
+        
+        msg = self.MsgUpLinear(msg_t_prev)
+        generated_msg = msg.detach().cpu()
+        return generated_msg
+
 
 
 class MsgDownSample(nn.Module):
@@ -92,86 +142,10 @@ class MsgDownSample(nn.Module):
         )
 
     def forward(self, msg):
-        msg = self.MsgReversedDiffusion(msg)
-        msg = torch.mean(msg, dim=3, keepdim=True).squeeze(3)
         msg = self.MsgDownNet(msg)
+        msg = torch.mean(msg, dim=3, keepdim=True).squeeze(3)
+        msg = self.MsgReversedDiffusion(msg)
         return msg
-
-
-class DDIMModel(nn.Module):
-    def __init__(self, dim, num_layers, hidden_dim, beta_min, beta_max, beta_steps):
-        super(DDIMModel, self).__init__()
-        self.dim = dim  # 特征维度（不包括batch和channel维度）
-        self.num_layers = num_layers
-        self.hidden_dim = hidden_dim
-        self.beta_min = beta_min
-        self.beta_max = beta_max
-        self.beta_steps = beta_steps
-        self.betas = self._create_betas()
-
-        self.alphas_cumprod = (1 - self.betas).cumprod(dim=0)
-        self.sqrt_alphas_cumprod = torch.sqrt(self.alphas_cumprod)
-        self.sqrt_one_minus_alphas_cumprod = torch.sqrt(1 - self.alphas_cumprod)
-        
-        self.net = nn.Sequential(
-            nn.Linear(dim, hidden_dim),
-            nn.ReLU(),
-            *[nn.Sequential(
-                nn.Linear(hidden_dim, hidden_dim),
-                nn.ReLU()
-            ) for _ in range(num_layers - 2)],
-            nn.Linear(hidden_dim, dim)
-        )
-    
-    def _create_betas(self):
-        betas = torch.linspace(self.beta_min, self.beta_max, self.beta_steps).float()
-        return betas
-    
-    def q_sample(self, x_start, t, noise=None):
-        """
-        前向扩散过程（仅用于训练时生成噪声数据）
-        """
-        if noise is None:
-            noise = torch.randn_like(x_start)
-        
-        x_noise = self.sqrt_alphas_cumprod[t] * x_start + self.sqrt_one_minus_alphas_cumprod[t] * noise
-        return x_noise, noise
-    
-    def p_sample(self, x_t, t, noise=None, num_steps=None):
-        """
-        逆向去噪过程（用于生成样本）
-        """
-        if num_steps is None:
-            num_steps = t + 1
-        
-        noise_preds = []
-        x_curr = x_t
-
-        for i in range(num_steps - 1, -1, -1):
-            t_prev = max(0, i - 1)
-            x_curr_noiseless = (x_curr - self.sqrt_one_minus_alphas_cumprod[t_prev + 1] * noise) / self.sqrt_alphas_cumprod[t_prev + 1]
-            noise_pred = self.net(x_curr_noiseless)
-            
-            if noise is None:
-                noise = torch.randn_like(x_curr)
-            
-            # DDIM specific reparameterization
-            x_prev = (x_curr_noiseless * self.sqrt_alphas_cumprod[t_prev] + 
-                      (1 - self.alphas_cumprod[t_prev]) * (noise_pred + noise) / self.sqrt_one_minus_alphas_cumprod[t_prev])
-            
-            noise_preds.append(noise_pred)
-            x_curr = x_prev
-        
-        return x_curr, noise_preds[::-1]
-    
-    def forward(self, x_t, t, noise=None):
-        """
-        在训练时，预测噪声
-        """
-        x_curr_noiseless = (x_t - self.sqrt_one_minus_alphas_cumprod[t] * noise) / self.sqrt_alphas_cumprod[t]
-        noise_pred = self.net(x_curr_noiseless)
-        return noise_pred
-
 
 class OutConv(nn.Module):
     def __init__(self, in_channels, out_channels):
@@ -181,16 +155,104 @@ class OutConv(nn.Module):
     def forward(self, x):
         return self.conv(x)
 
+class UNetModelMsg(nn.Module):
+    def __init__(self, in_channels, out_channels):
+        super(UNetModelMsg, self).__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
 
-class UNet_model(nn.Module):
-    def __init__(self, in_channels, out_channels, hidden_channels=128):
-        super(UNet_model, self).__init__()
-        self.DoubleConvLayer = DoubleConv(in_channels=in_channels, out_channels=out_channels)
-    
-    def forward(self, x):
-        x = self.encoder(x)
-        x = self.decoder(x)
+        self.inc = DoubleConv(self.in_channels, 64)
+        self.down_1 = DownSample(64, 128)
+        self.down_2 = DownSample(128, 256)
         
+        self.up_1 = UpSample(256, 128)
+        self.up_2 = UpSample(128, 64)
+
+        self.outc = OutConv(64, self.out_channels)
+    
+    def forward(self, msg):
+        msg1 = self.inc(msg)
+        msg2 = self.down_1(msg1)
+        msg3 = self.down_2(msg2)
+
+        msg = self.up_1(msg3, msg2)
+        msg = self.up_2(msg, msg1)
+        feature_mixed_msg = self.outc(msg)
+        return feature_mixed_msg
+
+class DiffusionModel(nn.Module):
+    def __init__(self, input_dim, num_time_steps, beta_min=1e-4, beta_max=2e-2):
+        super(DiffusionModel, self).__init__()
+        self.input_dim = input_dim
+        self.num_time_steps = num_time_steps
+        self.beta_min = beta_min
+        self.beta_max = beta_max
+
+        self.UNet = UNetModelMsg(1, 1)
+        self.betas = torch.linspace(beta_min, beta_max, num_time_steps, dtype=torch.float32)
+        self.alphas = 1.0 - self.betas
+        self.alphas_cumprod = torch.cumprod(self.alphas, dim=0)
+    
+    def forward(self, x_t, t):
+        x_t_t = torch.cat([x_t, t.unsqueeze(-1)], dim=-1)
+        
+        # Encode
+        mean = self.UNet(x_t_t)
+        
+        # For simplicity, we assume a fixed variance (beta_t) for the noise prediction
+        variance = self.betas[t]
+        
+        return mean, variance
+
+    def q_sample(self, x_0, t):
+        """
+        Sample from the forward diffusion process q(x_t|x_0)
+        """
+        noise = torch.randn_like(x_0)
+        alpha_cumprod_t = self.alphas_cumprod[t]
+        sqrt_alphas_cumprod_t = torch.sqrt(alpha_cumprod_t)
+        sqrt_one_minus_alphas_cumprod_t = torch.sqrt(1.0 - alpha_cumprod_t)
+        
+        return sqrt_alphas_cumprod_t * x_0 + sqrt_one_minus_alphas_cumprod_t * noise
+
+    def p_sample(self, x_t, t, noise=None):
+        """
+        Sample from the reverse diffusion process p(x_{t-1}|x_t)
+        """
+        if noise is None:
+            noise = torch.randn_like(x_t)
+        
+        mean, variance = self.forward(x_t, t)
+        beta_t = self.betas[t]
+        
+        # Compute the necessary coefficients
+        sqrt_alphas_cumprod_tm1 = torch.sqrt(self.alphas_cumprod[t-1])
+        sqrt_one_minus_alphas_cumprod_t = torch.sqrt(1.0 - self.alphas_cumprod[t])
+        sqrt_one_minus_alphas_t = torch.sqrt(1.0 - self.alphas[t])
+        
+        # Reverse process mean computation
+        x_tm1 = (x_t - sqrt_one_minus_alphas_cumprod_t * mean) / sqrt_alphas_cumprod_tm1
+        
+        # Adding noise for sampling
+        x_tm1 = x_tm1 + sqrt_one_minus_alphas_t * noise
+        
+        return x_tm1
+
+    def p_sample_loop(self, shape, num_time_steps, noise=None):
+        """
+        Generate a sample from the learned distribution
+        """
+        
+        if noise is None:
+            noise = torch.randn(shape, device=device)
+        
+        batch_size = shape[0]
+        x_T = torch.randn(shape, device=device)  # Start from pure noise at t=T
+        
+        for t in reversed(range(num_time_steps)):
+            x_T = self.p_sample(x_T, t, noise[:, t, :])
+        
+        return x_T
 
 class Unet_wm_embedder(nn.Module):
     def __init__(self, n_channels, n_classes, msg_length):
@@ -217,7 +279,7 @@ class Unet_wm_embedder(nn.Module):
         self.msg_up_4 = MsgUpSample(msg_length, 509)
         
 
-    def forward(self, spect, msg):
+    def forward(self, spect, msg, diffusion_time_t):
         # input spect shape:[batch_size(1), 1, 513, x]
         # input_msg shape:[batch_size(1), 1, msg_length]
         # msg shape: [batch_size(1), 1, 513]
@@ -229,10 +291,10 @@ class Unet_wm_embedder(nn.Module):
         x4 = self.down_3(x3)
         x5 = self.down_4(x4)
 
-        msg1 = self.msg_up_1(msg)
-        msg2 = self.msg_up_2(msg)
-        msg3 = self.msg_up_3(msg)
-        msg4 = self.msg_up_4(msg)
+        msg1 = self.msg_up_1.inference(msg)
+        msg2 = self.msg_up_2.inference(msg)
+        msg3 = self.msg_up_3.inference(msg)
+        msg4 = self.msg_up_4.inference(msg)
 
         x = self.up_1(x5, x4, msg1)
         x = self.up_2(x, x3, msg2)
