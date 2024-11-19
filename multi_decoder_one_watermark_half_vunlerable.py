@@ -167,8 +167,8 @@ def main(args, configs):
             wav_matrix = sample["matrix"].to(device)
             msg = msg.to(device)
             encoded, carrier_wateramrked = encoder(wav_matrix, msg, global_step)
-            robust_decoded = robust_decoder(encoded, global_step, train_config["attack_type"])
-            fragile_decoded = fragile_decoder(encoded, global_step, train_config["attack_type"])
+            robust_decoded = robust_decoder(encoded, wav_matrix.detach(), global_step, train_config["attack_type"])
+            fragile_decoded = fragile_decoder(encoded, wav_matrix.detach(), global_step, train_config["attack_type"])
             
             # one decoder loss
             # losses = loss.half_en_de_loss(wav_matrix, encoded, msg, robust_decoded[0], fragile_decoded[1])

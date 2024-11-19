@@ -686,14 +686,13 @@ class distortion(nn.Module):
         ta.save("results/after-vc-vqmivc.wav", wav, 22050)
         return wav.unsqueeze(0).to(device)
     
-    def VALLEX(self, tgt_audio):
+    def VALLEX(self, tgt_audio, audio_source):
         import sys
         sys.path.append('deepFake/VALL_E_X')
         from vallexutils.prompt_making import make_prompt_by_audio
         from vallexutils.generation import SAMPLE_RATE, generate_audio, preload_models
         from scipy.io.wavfile import write as write_wav
-
-        make_prompt_by_audio(name="vallex", wav_pr=tgt_audio.squeeze(0).cpu(), sr=22050)
+        make_prompt_by_audio(name="vallex", wav_pr=tgt_audio.squeeze(0).cpu(), source_wav=audio_source.squeeze(0).cpu(), sr=22050)
         preload_models()
         text_prompt = """
         Hello world, my name is john, nice to meet you.
@@ -749,7 +748,7 @@ class distortion(nn.Module):
 
 
 
-    def forward(self, x, attack_choice=1, ratio=10, src_path = None):
+    def forward(self, x, x_source, attack_choice=1, ratio=10, src_path = None):
         attack_functions = {
             0: lambda x: self.none(x),
             1: lambda x: self.crop(x),
@@ -784,7 +783,7 @@ class distortion(nn.Module):
             29: lambda x: self.YourTTS(x),
             30: lambda x: self.DiffVC(x, src_path),
             31: lambda x: self.VQMIVC(x, src_path),
-            32: lambda x: self.VALLEX(x),
+            32: lambda x: self.VALLEX(x, x_source),
             33: lambda x: self.FreeVC(x, src_path)
         }
 
