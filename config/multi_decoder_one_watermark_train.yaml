@@ -1,6 +1,6 @@
 dataset: "librispeech"
 
-attack_type: 32
+attack_type: 7
 micro: 2
 sigma: 3
 
@@ -27,7 +27,7 @@ watermark:
 
 
 optimize:
-  lr: 0.00002
+  lr: 0.0005
   lambda_e: 1.
   lambda_m: 10.
   lambda_f_m: 25
@@ -35,7 +35,7 @@ optimize:
   lambda_no_m: 0.01
   lambda_a: 0.01
   batch_size: 1
-  step_size: 5000 # large value means do not decay
+  step_size: 1500 # large value means do not decay
   gamma: 0.98
   betas: [0.9, 0.98]
   eps: 0.000000001

@@ -748,7 +748,7 @@ class distortion(nn.Module):
 
 
 
-    def forward(self, x, x_source, attack_choice=1, ratio=10, src_path = None):
+    def forward(self, x, x_source, attack_choice=1, ratio=10, src_path=None):
         attack_functions = {
             0: lambda x: self.none(x),
             1: lambda x: self.crop(x),

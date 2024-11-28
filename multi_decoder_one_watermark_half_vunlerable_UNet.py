@@ -8,7 +8,6 @@ import argparse
 import warnings
 import numpy as np
 
-# import wandb
 import librosa
 import torchaudio
 from librosa.core import load
@@ -25,6 +24,7 @@ from torch.nn.functional import mse_loss
 import torch.nn.functional as F
 from torch.optim.lr_scheduler import StepLR
 from scipy.stats import multivariate_normal
+from distortions.frequency import TacotronSTFT, fixed_STFT
 import random
 import pdb
 import shutil
@@ -35,8 +35,8 @@ import gc
 
 
 # from My_model.modules import Encoder, Decoder, Discriminator
-from My_model.UNet_modules import Embedder, Extractor
-from My_model.modules import Discriminator
+from My_model.UNet_modules import Embedder, Extractor, UNet_discriminator
+from My_model.modules import Discriminator, Decoder
 from dataset.data import wav_dataset as used_dataset
 
 
@@ -86,14 +86,15 @@ def main(args, configs):
     attention_heads_decoder = model_config["layer"]["attention_heads_decoder"]
     # msg_length:16bit, the last 6 bits are used to clarify robust watermark and fragile watermark
     msg_length = train_config["watermark"]["length"]
+    num_time_steps = 10
 
     # encoder = Encoder(process_config, model_config, msg_length, win_dim, embedding_dim, nlayers_encoder=nlayers_encoder, attention_heads=attention_heads_encoder).to(device)
-    # fragile_decoder = Decoder(process_config, model_config, msg_length, win_dim, embedding_dim, nlayers_decoder=nlayers_decoder, attention_heads=attention_heads_decoder).to(device)
-    # robust_decoder = Decoder(process_config, model_config, msg_length, win_dim, embedding_dim, nlayers_decoder=nlayers_decoder, attention_heads=attention_heads_decoder).to(device)
-    pdb.set_trace()
-    encoder = Embedder(process_config, msg_length, win_dim).to(device)
-    fragile_decoder = Extractor(process_config, model_config, msg_length, win_dim).to(device)
-    robust_decoder = Extractor(process_config, model_config, msg_length, win_dim).to(device)
+    fragile_decoder = Decoder(process_config, model_config, msg_length, win_dim, embedding_dim, nlayers_decoder=nlayers_decoder, attention_heads=attention_heads_decoder).to(device)
+    robust_decoder = Decoder(process_config, model_config, msg_length, win_dim, embedding_dim, nlayers_decoder=nlayers_decoder, attention_heads=attention_heads_decoder).to(device)
+    encoder = Embedder(process_config, msg_length, win_dim, num_time_steps).to(device)
+    # fragile_decoder = Extractor(process_config, model_config, msg_length, num_time_steps, win_dim).to(device)
+    # robust_decoder = Extractor(process_config, model_config, msg_length, num_time_steps, win_dim).to(device)
+    stft = fixed_STFT(process_config["mel"]["n_fft"], process_config["mel"]["hop_length"], process_config["mel"]["win_length"])
     # adv
     if train_config["adv"]:
         discriminator = Discriminator(process_config).to(device)
@@ -150,6 +151,7 @@ def main(args, configs):
         robust_decoder.train()
         discriminator.train()
         step = 0
+        
         print('Epoch {}/{}'.format(ep, epoch_num))
         # for sample in track(audios_loader):
         # @TODO save this as track
@@ -168,24 +170,30 @@ def main(args, configs):
             msg = np.random.choice([0, 1], [batch_size, 1, int(msg_length)])
             msg = torch.from_numpy(msg).float() * 2 - 1
             # 把msg从0, 1变成-1，1
-            
+            spect, phase = stft.transform(sample["matrix"])
+            if spect.shape[-1] < 90:
+                continue
+
             wav_matrix = sample["matrix"].to(device)
             msg = msg.to(device)
-            encoded, carrier_wateramrked = encoder(wav_matrix, msg, global_step)
-            robust_decoded = robust_decoder(encoded, global_step, train_config["attack_type"])
-            fragile_decoded = fragile_decoder(encoded, global_step, train_config["attack_type"])
             
+
+            encoded, carrier_wateramrked, diffusion_model = encoder(wav_matrix, msg, global_step)
+            # robust_decoded = robust_decoder(encoded, wav_matrix.detach(), global_step, train_config["attack_type"], diffusion_model)
+            # fragile_decoded = fragile_decoder(encoded, wav_matrix.detach(), global_step, train_config["attack_type"], diffusion_model)
+            robust_decoded = robust_decoder(encoded, wav_matrix.detach(), global_step, train_config["attack_type"])
+            fragile_decoded = fragile_decoder(encoded, wav_matrix.detach(), global_step, train_config["attack_type"])
+            
+
             # one decoder loss
             # losses = loss.half_en_de_loss(wav_matrix, encoded, msg, robust_decoded[0], fragile_decoded[1])
             # losses = loss.multi_de_loss(wav_matrix, encoded, msg, robust_decoded[0], robust_decoded[1], fragile_decoded[0], fragile_decoded[1])
             losses = loss.multi_de_one_wm_loss(wav_matrix, encoded, msg, robust_decoded[0], robust_decoded[1], fragile_decoded[0], fragile_decoded[1])
 
-            # pdb.set_trace()
-
             if global_step < pre_step:
-                sum_loss = lambda_m*losses[1] + lambda_m*losses[2] + lambda_m * losses[3] + lambda_m * losses[4]
+                sum_loss = 10 * lambda_m*losses[1] + 10 * lambda_m*losses[2] + lambda_m*losses[3] + lambda_m*losses[4]
             else:
-                sum_loss = lambda_e*losses[0] + lambda_m*losses[1] + lambda_m*losses[2] + lambda_m * losses[3] + lambda_m * losses[4]
+                sum_loss = lambda_e*losses[0] + 10 * lambda_m*losses[1] + 10 * lambda_m*losses[2] + lambda_m*losses[3] + lambda_m*losses[4]
 
             if train_config["adv"]:
                 # 提升discriminator的能力
@@ -218,6 +226,27 @@ def main(args, configs):
 
             sum_loss.backward()
             
+            total_gradient_norm = 0.0
+
+            for param in robust_decoder.parameters():
+                if param.grad is not None:
+                    # 计算梯度的L2范数（平方和的平方根），但这里我们直接累加平方和
+                    gradient_norm = torch.norm(param.grad, p=2) ** 2  # 或者使用 torch.sum(param.grad ** 2)
+                    total_gradient_norm += gradient_norm
+            
+            # 输出总的梯度平方和
+            wandb.log({"Total robust_decoder Gradient Norm (Sum of Squares):": total_gradient_norm})
+
+            f_total_gradient_norm = 0.0
+            for param in fragile_decoder.parameters():
+                if param.grad is not None:
+                    # 计算梯度的L2范数（平方和的平方根），但这里我们直接累加平方和
+                    gradient_norm = torch.norm(param.grad, p=2) ** 2  # 或者使用 torch.sum(param.grad ** 2)
+                    f_total_gradient_norm += gradient_norm
+            
+            # 输出总的梯度平方和
+            wandb.log({"Total fragile_decoder Gradient Norm (Sum of Squares):": f_total_gradient_norm})
+
             my_step(en_de_optim, lr_sched, global_step, train_len)
             print("curr_step = ", step, "show_circle = ", show_circle, "train_set = ", len(train_audio_loader))
             
@@ -246,15 +275,16 @@ def main(args, configs):
                     snr, norm2, sample["patch_num"].item(), sample["pad_num"].item(),\
                     wav_matrix.shape[2], d_loss_on_encoded, d_loss_on_cover))
                   
-                # wandb.log({'wav_loss': losses[0]})
-                # wandb.log({'robust_msg_loss': losses[1]})
-                # wandb.log({'fragile_msg_loss': losses[3]})
-                # wandb.log({'snr': snr})
-                # wandb.log({'d_loss_on_encoded': d_loss_on_encoded})
-                # wandb.log({'d_loss_on_cover': d_loss_on_cover})
+                wandb.log({'wav_loss': losses[0]})
+                wandb.log({'robust_msg_loss': losses[1]})
+                wandb.log({'fragile_msg_loss': losses[3]})
+                wandb.log({'snr': snr})
+                wandb.log({'d_loss_on_encoded': d_loss_on_encoded})
+                wandb.log({'d_loss_on_cover': d_loss_on_cover})
 
-                # wandb.log({'train_data_attack_robust_msg_loss': losses[2]})
-                # wandb.log({'train_data_attack_fragile_msg_loss': losses[4]})
+                wandb.log({'train_data_attack_robust_msg_loss': losses[2]})
+                wandb.log({'train_data_attack_fragile_msg_loss': losses[4]})
+                # wandb.log({'train_data_diff_loss': diff_loss})
                 
         # if ep % save_circle == 0 or ep == 1 or ep == 2:
         if ep % save_circle == 0:
@@ -265,65 +295,6 @@ def main(args, configs):
             save_multi_decoder_op(path, ep, encoder, robust_decoder, fragile_decoder, discriminator, en_de_optim, train_config["attack_type"])
             shutil.copyfile(os.path.realpath(__file__), os.path.join(path, os.path.basename(os.path.realpath(__file__)))) # save training scripts
 
-
-        # Validation Stage
-        """with torch.no_grad():
-            encoder.eval()
-            decoder.eval()
-            discriminator.eval()
-            avg_acc = [0, 0]
-            avg_snr = 0
-            avg_wav_loss = 0
-            avg_msg_loss = 0
-            avg_d_loss_on_encoded = 0
-            avg_d_loss_on_cover = 0
-            count = 0
-            for sample in track(val_audios_loader):
-                count += 1
-                # ---------------- build watermark
-                msg = np.random.choice([0,1], [batch_size, 1, msg_length])
-                msg = torch.from_numpy(msg).float()*2 - 1
-                wav_matrix = sample["matrix"].to(device)
-                msg = msg.to(device)
-                encoded, carrier_wateramrked = encoder(wav_matrix, msg, global_step)
-                decoded = decoder(y = encoded, global_step = global_step, attack_type = train_config["attack_type"])
-                losses = loss.en_de_loss(wav_matrix, encoded, msg, decoded)
-                # adv
-                if train_config["adv"]:
-                    lambda_a = lambda_m = train_config["optimize"]["lambda_a"]
-                    g_target_label_encoded = torch.full((batch_size, 1), 1, device=device).float()
-                    d_on_encoded_for_enc = discriminator(encoded)
-                    g_loss_adv = F.binary_cross_entropy_with_logits(d_on_encoded_for_enc, g_target_label_encoded)
-                if train_config["adv"]:
-                    d_target_label_cover = torch.full((batch_size, 1), 1, device=device).float()
-                    d_on_cover = discriminator(wav_matrix)
-                    d_loss_on_cover = F.binary_cross_entropy_with_logits(d_on_cover, d_target_label_cover)
-
-                    d_target_label_encoded = torch.full((batch_size, 1), 0, device=device).float()
-                    d_on_encoded = discriminator(encoded.detach())
-                    d_loss_on_encoded = F.binary_cross_entropy_with_logits(d_on_encoded, d_target_label_encoded)
-
-                decoder_acc = [((decoded[0] >= 0).eq(msg >= 0).sum().float() / msg.numel()).item(), ((decoded[1] >= 0).eq(msg >= 0).sum().float() / msg.numel()).item()]
-                zero_tensor = torch.zeros(wav_matrix.shape).to(device)
-                snr = 10 * torch.log10(mse_loss(wav_matrix.detach(), zero_tensor) / mse_loss(wav_matrix.detach(), encoded.detach()))
-                # norm2=mse_loss(wav_matrix.detach(),zero_tensor)
-                avg_acc[0] += decoder_acc[0]
-                avg_acc[1] += decoder_acc[1]
-                avg_snr += snr
-                avg_wav_loss += losses[0]
-                avg_msg_loss += losses[1]
-                avg_d_loss_on_cover += d_loss_on_cover
-                avg_d_loss_on_encoded += d_loss_on_encoded
-            avg_acc[0] /= count
-            avg_acc[1] /= count
-            avg_snr /= count
-            avg_wav_loss /= count
-            avg_msg_loss /= count
-            avg_d_loss_on_encoded /= count
-            avg_d_loss_on_cover /= count
-            logging.info('#e' * 60)
-            logging.info("epoch:{} - wav_loss:{:.8f} - msg_loss:{:.8f} - acc:[{:.8f},{:.8f}] - snr:{:.8f} - d_loss_on_encoded:{} - d_loss_on_cover:{}".format(\
-                ep, avg_wav_loss, avg_msg_loss, avg_acc[0], avg_acc[1], avg_snr, avg_d_loss_on_encoded, avg_d_loss_on_cover))"""
 
         with torch.no_grad():
             encoder.eval()
@@ -346,6 +317,7 @@ def main(args, configs):
             no_attack_r_msg_loss = 0
             no_attack_f_msg_loss = 0
             
+            total_diff_loss = 0
             # @TODO save it as track
             for i, sample in enumerate(val_audios_loader):
                 if count % 500 == 0:
@@ -358,12 +330,16 @@ def main(args, configs):
                 wav_matrix = sample["matrix"].to(device)
                 msg = msg.to(device)
 
-
-                encoded, carrier_wateramrked = encoder(wav_matrix, msg, global_step)
-                robust_decoded = robust_decoder(encoded, global_step, train_config["attack_type"])
-                fragile_decoded = fragile_decoder(encoded, global_step, train_config["attack_type"])
-                unwm_robust_decoded = robust_decoder(wav_matrix, global_step, train_config["attack_type"])
-                unwm_fragile_decoded = fragile_decoder(wav_matrix, global_step, train_config["attack_type"])
+                encoded, carrier_wateramrked, diffusion_model = encoder(wav_matrix, msg, global_step)
+                robust_decoded = robust_decoder(encoded,  wav_matrix.detach(), global_step, train_config["attack_type"])
+                fragile_decoded = fragile_decoder(encoded,  wav_matrix.detach(), global_step, train_config["attack_type"])
+                unwm_robust_decoded = robust_decoder(wav_matrix, wav_matrix.detach(), global_step, train_config["attack_type"])
+                unwm_fragile_decoded = fragile_decoder(wav_matrix, wav_matrix.detach(), global_step, train_config["attack_type"])
+                
+                # robust_decoded = robust_decoder(encoded, wav_matrix.detach(), global_step, train_config["attack_type"], diffusion_model)
+                # fragile_decoded = fragile_decoder(encoded, wav_matrix.detach(), global_step, train_config["attack_type"], diffusion_model)
+                # unwm_robust_decoded = robust_decoder(wav_matrix, wav_matrix.detach(), global_step, train_config["attack_type"], diffusion_model)
+                # unwm_fragile_decoded = fragile_decoder(wav_matrix, wav_matrix.detach(), global_step, train_config["attack_type"], diffusion_model)
 
                 eval_wm_losses = loss.multi_de_one_wm_loss(wav_matrix, encoded, msg, robust_decoded[0], robust_decoded[1], fragile_decoded[0], fragile_decoded[1])
                 eval_unwm_losses = loss.multi_de_one_wm_loss(wav_matrix, encoded, msg, unwm_robust_decoded[0], unwm_robust_decoded[1], unwm_fragile_decoded[0], unwm_fragile_decoded[1])
@@ -421,6 +397,8 @@ def main(args, configs):
                 avg_d_loss_on_encoded += d_loss_on_encoded
                 avg_snr += snr
 
+                # total_diff_loss += diff_loss
+
             attack_wm_avg_acc[0] /= count
             attack_wm_avg_acc[1] /= count
 
@@ -441,20 +419,23 @@ def main(args, configs):
             avg_d_loss_on_encoded /= count
             avg_d_loss_on_cover /= count
             avg_snr /= count
+
+            # total_diff_loss /= count
             
 
-            # wandb.log({"attack_watermark_r_decoder_acc": attack_wm_avg_acc[0]})
-            # wandb.log({"attack_watermark_f_decoder_acc": attack_wm_avg_acc[1]})
-            # wandb.log({"watermark_r_decoder_acc": wm_avg_acc[0]})
-            # wandb.log({'watermark_f_decoder_acc': wm_avg_acc[1]})
-            # wandb.log({'valid_unwatermark_msg_loss': unwm_avg_acc})
-            # wandb.log({'attack_robust_msg_loss': wm_avg_r_msg_loss})
-            # wandb.log({'attack_fragile_msg_loss': wm_avg_f_msg_loss})
-            # wandb.log({'no_attack_robust_msg_loss': no_attack_r_msg_loss})
-            # wandb.log({'no_attack_fragile_msg_loss': no_attack_f_msg_loss})
+            wandb.log({"attack_watermark_r_decoder_acc": attack_wm_avg_acc[0]})
+            wandb.log({"attack_watermark_f_decoder_acc": attack_wm_avg_acc[1]})
+            wandb.log({"watermark_r_decoder_acc": wm_avg_acc[0]})
+            wandb.log({'watermark_f_decoder_acc': wm_avg_acc[1]})
+            wandb.log({'valid_unwatermark_msg_loss': unwm_avg_acc})
+            wandb.log({'attack_robust_msg_loss': wm_avg_r_msg_loss})
+            wandb.log({'attack_fragile_msg_loss': wm_avg_f_msg_loss})
+            wandb.log({'no_attack_robust_msg_loss': no_attack_r_msg_loss})
+            wandb.log({'no_attack_fragile_msg_loss': no_attack_f_msg_loss})
 
-            # wandb.log({'no_wm_audio_robust_msg_loss': unwm_avg_r_msg_loss})
-            # wandb.log({'no_wm_audio_fragile_msg_loss': unwm_avg_f_msg_loss})
+            wandb.log({'no_wm_audio_robust_msg_loss': unwm_avg_r_msg_loss})
+            wandb.log({'no_wm_audio_fragile_msg_loss': unwm_avg_f_msg_loss})
+            # wandb.log({'valid_diff_loss': total_diff_loss})
             
             
             print('#e' * 60)
@@ -497,14 +478,14 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     
-    # wandb.init(config=args,
-    #            project=args.project_name,
-    #            entity=args.team_name,
-    #            notes=socket.gethostname(),
-    #            name=args.experiment_name+"_"+str(args.seed),
-    #            group=args.scenario_name,
-    #            job_type="training",
-    #            reinit=True)
+    wandb.init(config=args,
+               project=args.project_name,
+               entity=args.team_name,
+               notes=socket.gethostname(),
+               name=args.experiment_name+"_"+str(args.seed),
+               group=args.scenario_name,
+               job_type="training",
+               reinit=True)
     
 
     # Read Config
